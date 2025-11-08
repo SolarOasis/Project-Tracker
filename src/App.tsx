@@ -231,7 +231,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
 
         if (isNew) {
-            const newItemData = {
+            const newItemData: Partial<T> = {
                 ...itemData,
                 id: uuidv4(),
                 uid: userId,
@@ -239,9 +239,12 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 updated_at: now,
             };
             try {
-                // Wait for the server to return the complete, validated object
+                // We send the partial data to the API.
+                // The API is the source of truth and returns a complete object of type T.
                 const savedItem = await api.saveItem<T>(type, newItemData, true);
-                // Only update state with the server-confirmed item
+                
+                // We only add the complete, validated item from the server to our state.
+                // This guarantees type safety and prevents the TS2345 error.
                 setState(prev => [...prev, savedItem]);
             } catch (error) {
                 console.error("Failed to create item:", error);
