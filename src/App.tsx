@@ -228,10 +228,10 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         }
         const isNew = !existingItem;
         const now = new Date().toISOString();
-        const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
+        const setState = stateSetters[type] as unknown as React.Dispatch<React.SetStateAction<T[]>>;
 
         if (isNew) {
-            // Optimistic update for new items
+            // Wait-for-server approach for new items to ensure type safety.
             const newItem = {
                 ...itemData,
                 id: uuidv4(),
@@ -240,17 +240,14 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 updated_at: now,
             } as T;
 
-            setState(prev => [...prev, newItem]);
-
             try {
                 const savedItem = await api.saveItem<T>(type, newItem, true);
-                // Sync with server state to get any server-generated values (if any)
-                setState(prev => prev.map(item => (item.id === newItem.id ? savedItem : item)));
+                // Add the server-confirmed item to state. This is guaranteed to be a valid T.
+                setState(prev => [...prev, savedItem]);
             } catch (error) {
                 console.error("Failed to create item:", error);
-                showToast(`Error saving ${type}. Reverting.`, "error");
-                // Revert on failure
-                setState(prev => prev.filter(item => item.id !== newItem.id));
+                showToast(`Error saving ${type}.`, "error");
+                 // No reversal needed because no optimistic update was performed.
             }
         } else {
             // Optimistic update for existing items
