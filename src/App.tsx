@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, FC, PropsWithChildren, useRef, cre
 import { v4 as uuidv4 } from 'uuid';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import html2pdf from 'html2pdf.js';
-// Fix: Import Timestampable to use in generic constraints for item creation/updates.
 import { Project, Transaction, FollowUp, Todo, Category, ModalType, Estimation, Milestone, PaymentMilestone, Timestampable } from './types';
 import * as api from './api';
 
@@ -53,7 +52,6 @@ interface AppContextType {
     categories: Category[];
     selectedProjectId: string | null;
     setSelectedProjectId: (id: string | null) => void;
-    // Fix: Strengthen the generic type constraint to include Timestampable, ensuring 'created_at' is available.
     createOrUpdateItem: <T extends Timestampable & { id: string; uid: string; }>(type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', itemData: Partial<T>, existingItem: T | null) => Promise<void>;
     deleteItem: (type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', id: string) => Promise<void>;
     loadDemoData: () => void;
@@ -88,6 +86,13 @@ const formatDate = (dateString?: string | Date) => {
     if (!isValid(date)) return 'Invalid Date';
     return format(date, 'dd-MMM-yyyy');
 };
+
+const toInputDate = (dateString?: string | Date) => {
+    if (!dateString) return '';
+    const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
+    if (!isValid(date)) return '';
+    return format(date, 'yyyy-MM-dd');
+}
 
 const safeNumber = (n: any): number => {
     const num = Number(n);
@@ -196,7 +201,6 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         categories: setCategories,
     };
 
-    // Fix: Strengthen the generic type constraint to include Timestampable, ensuring 'created_at' is available on existing items.
     const createOrUpdateItem = async <T extends Timestampable & { id: string; uid: string; }>(
         type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
         itemData: Partial<T>,
@@ -206,15 +210,21 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         const isNew = !existingItem;
         const now = new Date().toISOString();
 
-        const fullItemData: T = {
+        const fullItemData: T = isNew
+        ? ({
             ...itemData,
-            id: isNew ? uuidv4() : existingItem!.id,
+            id: uuidv4(),
             uid: userId,
-            created_at: isNew ? now : existingItem!.created_at,
+            created_at: now,
             updated_at: now,
-        } as unknown as T;
+        } as T)
+        : ({
+            ...existingItem!,
+            ...itemData,
+            updated_at: now,
+        } as T);
         
-        const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
+        const setState = stateSetters[type] as unknown as React.Dispatch<React.SetStateAction<T[]>>;
         
         // Optimistic update
         if (isNew) {
@@ -438,7 +448,7 @@ const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { typ
                 <TodoFormModal isOpen={activeModal === 'todo'} onClose={handleCloseModal} todo={editingItem} projectId={project.id} onSave={createOrUpdateItem} onSuccess={showToast} />
                 </>
             )}
-            <CategoryManagerModal isOpen={activeModal === 'category'} onClose={handleCloseModal} categories={categories} onSave={createOrUpdateItem} onDelete={(id) => deleteItem('categories', id)} onSuccess={showToast} />
+            <CategoryManagerModal isOpen={activeModal === 'category'} onClose={handleCloseModal} categories={categories} onSave={createOrUpdateItem} onDelete={(id: string) => deleteItem('categories', id)} onSuccess={showToast} />
             <Modal isOpen={activeModal === 'confirmDelete'} onClose={handleCloseModal} title="Confirm Deletion">
                 <p>Are you sure you want to delete this {itemToDelete?.name.toLowerCase()}? This action cannot be undone.</p>
                 <div className="mt-6 flex justify-end gap-4"><Button onClick={handleCloseModal} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">Delete</Button></div>
@@ -636,8 +646,8 @@ const TodosTab: FC<{ todos: Todo[], openModal: (type: ModalType, item?: any) => 
     const doneTodos = useMemo(() => todos.filter(t => t.status === 'Done'), [todos]);
 
     const handleToggleStatus = (todo: Todo) => {
-      const updatedTodo = { ...todo, status: todo.status === 'Open' ? 'Done' : 'Open' };
-      createOrUpdateItem('todos', updatedTodo, todo);
+      const newStatus = todo.status === 'Open' ? 'Done' : 'Open';
+      createOrUpdateItem('todos', { status: newStatus }, todo);
     }
     
     const priorityColor = (priority: 'Low' | 'Medium' | 'High') => ({ Low: 'bg-green-100 text-green-800', Medium: 'bg-yellow-100 text-yellow-800', High: 'bg-red-100 text-red-800' }[priority]);
@@ -678,12 +688,236 @@ const PrintableView: FC<{ project: Project; transactions: Transaction[]; calcs: 
     </div>
 );
 
+// ===================================================================================
+// MODAL FORM IMPLEMENTATIONS
+// ===================================================================================
 
-// ALL MODALS are largely unchanged in their UI, only their onSave prop now calls an async function.
-const ProjectFormModal: FC<any> = ({ isOpen, onClose, project, onSave, onSuccess }) => { /* Unchanged UI */ return <Modal isOpen={isOpen} onClose={onClose} title="Project Form">...</Modal> };
-const TransactionFormModal: FC<any> = ({ isOpen, onClose, transaction, projectId, onSuccess, onSave }) => { /* Unchanged UI */ return <Modal isOpen={isOpen} onClose={onClose} title="Transaction Form">...</Modal> };
-const CategoryManagerModal: FC<any> = ({isOpen, onClose, categories, onSuccess, onSave, onDelete}) => { /* Unchanged UI */ return <Modal isOpen={isOpen} onClose={onClose} title="Category Manager">...</Modal> };
-const FollowUpFormModal: FC<any> = ({ isOpen, onClose, followUp, projectId, onSuccess, onSave }) => { /* Unchanged UI */ return <Modal isOpen={isOpen} onClose={onClose} title="Follow-up Form">...</Modal> };
-const TodoFormModal: FC<any> = ({ isOpen, onClose, todo, projectId, onSuccess, onSave }) => { /* Unchanged UI */ return <Modal isOpen={isOpen} onClose={onClose} title="Todo Form">...</Modal> };
+const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Project | null; onSave: (type: 'projects', data: Partial<Project>, existing: Project | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, project, onSave, onSuccess }) => {
+    const [formData, setFormData] = useState<Partial<Project>>({});
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (isOpen) {
+            setFormData(project ? { ...project } : {
+                status: 'Draft',
+                estimation: { ...DEFAULT_ESTIMATION },
+                milestones: [...DEFAULT_MILESTONES],
+                paymentMilestones: [...DEFAULT_PAYMENT_MILESTONES],
+            });
+            setErrors({});
+        }
+    }, [isOpen, project]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value, type } = e.target;
+        const checked = (e.target as HTMLInputElement).checked;
+        if (name.startsWith('estimation.')) {
+            const field = name.split('.')[1];
+            setFormData(prev => ({ ...prev, estimation: { ...prev.estimation, [field]: type === 'checkbox' ? checked : value } }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const validate = () => {
+        const newErrors: Record<string, string> = {};
+        if (!formData.name) newErrors.name = "Project name is required.";
+        if (!formData.clientName) newErrors.clientName = "Client name is required.";
+        if (!formData.clientEmail || !isEmailValid(formData.clientEmail)) newErrors.clientEmail = "A valid client email is required.";
+        if (!formData.clientPhone || !isPhoneValid(formData.clientPhone)) newErrors.clientPhone = "A valid client phone is required.";
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!validate()) return;
+        onSave('projects', formData, project);
+        onSuccess(`Project ${project ? 'updated' : 'created'} successfully!`);
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={project ? 'Edit Project' : 'Create New Project'}>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="border-b pb-4">
+                    <h4 className="font-semibold text-lg text-gray-800 mb-4">Project & Client Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input label="Project Name" name="name" value={formData.name || ''} onChange={handleChange} error={errors.name} required />
+                        <Select label="Status" name="status" value={formData.status || 'Draft'} onChange={handleChange}>{PROJECT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</Select>
+                        <Input label="Client Name" name="clientName" value={formData.clientName || ''} onChange={handleChange} error={errors.clientName} required />
+                        <Input label="Client Company (Optional)" name="clientCompany" value={formData.clientCompany || ''} onChange={handleChange} />
+                        <Input label="Client Phone" name="clientPhone" type="tel" value={formData.clientPhone || ''} onChange={handleChange} error={errors.clientPhone} required />
+                        <Input label="Client Email" name="clientEmail" type="email" value={formData.clientEmail || ''} onChange={handleChange} error={errors.clientEmail} required />
+                        <div className="md:col-span-2"><Input label="Site Address" name="siteAddress" value={formData.siteAddress || ''} onChange={handleChange} required /></div>
+                        <Input label="Google Maps Link (Optional)" name="googleMapsLink" value={formData.googleMapsLink || ''} onChange={handleChange} />
+                        <Select label="Authority" name="authority" value={formData.authority || ''} onChange={handleChange}>{UAE_AUTHORITIES.map(a => <option key={a} value={a}>{a}</option>)}</Select>
+                    </div>
+                </div>
+                <div className="border-b pb-4">
+                    <h4 className="font-semibold text-lg text-gray-800 mb-4">Contract & Dates</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input label="Contract Value (AED)" name="contractValue" type="number" step="0.01" value={formData.contractValue || ''} onChange={handleChange} />
+                        <Input label="Expected Start Date" name="expectedStartDate" type="date" value={toInputDate(formData.expectedStartDate)} onChange={handleChange} />
+                        <Input label="Expected End Date" name="expectedEndDate" type="date" value={toInputDate(formData.expectedEndDate)} onChange={handleChange} />
+                    </div>
+                </div>
+                 <div className="border-b pb-4">
+                    <h4 className="font-semibold text-lg text-gray-800 mb-4">Estimation</h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input label="System Size (kWp)" name="estimation.systemSizeKwp" type="number" step="0.1" value={formData.estimation?.systemSizeKwp || ''} onChange={handleChange} />
+                        <Input label="Total CAPEX Budget (AED)" name="estimation.totalCapexBudget" type="number" step="0.01" value={formData.estimation?.totalCapexBudget || ''} onChange={handleChange} />
+                        <Input label="Contingency (%)" name="estimation.contingencyPercent" type="number" step="1" value={formData.estimation?.contingencyPercent || ''} onChange={handleChange} />
+                        <Input label="VAT (%)" name="estimation.vatPercent" type="number" step="0.1" value={formData.estimation?.vatPercent || ''} onChange={handleChange} />
+                        <div className="flex items-center gap-2 pt-6"><input type="checkbox" name="estimation.capexIncludesVat" id="capexIncludesVat" checked={formData.estimation?.capexIncludesVat || false} onChange={handleChange} className="h-4 w-4 rounded" /><label htmlFor="capexIncludesVat">CAPEX includes VAT</label></div>
+                    </div>
+                </div>
+                <div className="md:col-span-2"><Textarea label="Notes (Optional)" name="notes" value={formData.notes || ''} onChange={handleChange} rows={3} /></div>
+                <div className="flex justify-end gap-4"><Button onClick={onClose} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button type="submit" className="bg-brand-indigo text-white hover:bg-indigo-700">Save Project</Button></div>
+            </form>
+        </Modal>
+    );
+};
+
+const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transaction: Transaction | null; projectId: string; onSave: (type: 'transactions', data: Partial<Transaction>, existing: Transaction | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, transaction, projectId, onSave, onSuccess }) => {
+    const { categories } = useAppContext();
+    const [formData, setFormData] = useState<Partial<Transaction>>({});
+
+    useEffect(() => {
+        if (isOpen) {
+            setFormData(transaction ? { ...transaction } : { type: 'Expense', date: new Date().toISOString().slice(0, 10), project_id: projectId });
+        }
+    }, [isOpen, transaction, projectId]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: name === 'amount' ? parseFloat(value) : value }));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.description || !formData.amount) return;
+        onSave('transactions', { ...formData, project_id: projectId }, transaction);
+        onSuccess(`Transaction ${transaction ? 'updated' : 'added'}!`);
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={transaction ? 'Edit Transaction' : 'Add Transaction'}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select label="Type" name="type" value={formData.type} onChange={handleChange}><option>Expense</option><option>Income</option></Select>
+                    <Input label="Date" name="date" type="date" value={toInputDate(formData.date)} onChange={handleChange} required />
+                </div>
+                <Input label="Description" name="description" value={formData.description || ''} onChange={handleChange} required />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <Input label="Amount (AED)" name="amount" type="number" step="0.01" value={formData.amount || ''} onChange={handleChange} required />
+                     {formData.type === 'Expense' ? (
+                        <Select label="Category" name="category" value={formData.category} onChange={handleChange} required>
+                            <option value="">Select Category</option>
+                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </Select>
+                     ) : (
+                         <Input label="Category" name="category" value={formData.category || 'Client Payment'} onChange={handleChange} readOnly />
+                     )}
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select label="Payment Mode" name="paymentMode" value={formData.paymentMode} onChange={handleChange}>{DEFAULT_PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}</Select>
+                    <Input label="Vendor (Optional)" name="vendor" value={formData.vendor || ''} onChange={handleChange} />
+                </div>
+                <Input label="Invoice No. (Optional)" name="invoiceNo" value={formData.invoiceNo || ''} onChange={handleChange} />
+                <div className="flex justify-end gap-4 pt-4"><Button onClick={onClose} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button type="submit" className="bg-brand-indigo text-white hover:bg-indigo-700">Save Transaction</Button></div>
+            </form>
+        </Modal>
+    );
+};
+
+const CategoryManagerModal: FC<{ isOpen: boolean; onClose: () => void; categories: Category[]; onSuccess: (msg: string) => void; onSave: (type: 'categories', data: Partial<Category>, existing: Category | null) => void; onDelete: (id: string) => void; }> = ({ isOpen, onClose, categories, onSuccess, onSave, onDelete }) => {
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const handleAddCategory = () => {
+        if (newCategoryName.trim() && !categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+            onSave('categories', { name: newCategoryName.trim() }, null);
+            onSuccess('Category added!');
+            setNewCategoryName('');
+        }
+    };
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Manage Expense Categories">
+            <div className="space-y-4">
+                <div><h4 className="font-semibold mb-2">Add New Category</h4><div className="flex gap-2"><Input placeholder="E.g., Marketing" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} /><Button onClick={handleAddCategory} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300">Add</Button></div></div>
+                <div><h4 className="font-semibold mb-2">Existing Categories</h4><ul className="space-y-2 max-h-60 overflow-y-auto pr-2">{categories.map(cat => <li key={cat.id} className="flex justify-between items-center bg-gray-100 p-2 rounded-md"><span>{cat.name}</span><button onClick={() => onDelete(cat.id)} className="text-gray-400 hover:text-red-600"><TrashIcon /></button></li>)}</ul></div>
+            </div>
+        </Modal>
+    );
+};
+
+const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: FollowUp | null; projectId: string; onSuccess: (msg: string) => void; onSave: (type: 'followups', data: Partial<FollowUp>, existing: FollowUp | null) => void; }> = ({ isOpen, onClose, followUp, projectId, onSuccess, onSave }) => {
+    const [formData, setFormData] = useState<Partial<FollowUp>>({});
+    useEffect(() => {
+        if (isOpen) setFormData(followUp ? { ...followUp } : { project_id: projectId, status: 'Pending', date: new Date().toISOString().slice(0, 10) });
+    }, [isOpen, followUp, projectId]);
+    
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.title || !formData.details) return;
+        onSave('followups', { ...formData, project_id: projectId }, followUp);
+        onSuccess('Follow-up saved!');
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={followUp ? 'Edit Follow-up' : 'Add Follow-up'}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Input label="Title" name="title" value={formData.title || ''} onChange={handleChange} required />
+                <Textarea label="Details" name="details" value={formData.details || ''} onChange={handleChange} rows={4} required />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="Log Date" name="date" type="date" value={toInputDate(formData.date)} onChange={handleChange} required />
+                    <Input label="Owner" name="owner" value={formData.owner || ''} onChange={handleChange} required />
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select label="Status" name="status" value={formData.status} onChange={handleChange}><option>Pending</option><option>Completed</option></Select>
+                    <Input label="Next Follow-up Date (Optional)" name="nextFollowUpDate" type="date" value={toInputDate(formData.nextFollowUpDate)} onChange={handleChange} />
+                </div>
+                <div className="flex justify-end gap-4 pt-4"><Button onClick={onClose} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button type="submit" className="bg-brand-indigo text-white hover:bg-indigo-700">Save</Button></div>
+            </form>
+        </Modal>
+    );
+};
+
+const TodoFormModal: FC<{ isOpen: boolean; onClose: () => void; todo: Todo | null; projectId: string; onSuccess: (msg: string) => void; onSave: (type: 'todos', data: Partial<Todo>, existing: Todo | null) => void; }> = ({ isOpen, onClose, todo, projectId, onSuccess, onSave }) => {
+    const [formData, setFormData] = useState<Partial<Todo>>({});
+    useEffect(() => {
+        if (isOpen) setFormData(todo ? { ...todo } : { project_id: projectId, status: 'Open', priority: 'Medium' });
+    }, [isOpen, todo, projectId]);
+    
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.task) return;
+        onSave('todos', { ...formData, project_id: projectId }, todo);
+        onSuccess('To-do saved!');
+        onClose();
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={todo ? 'Edit To-do' : 'Add To-do'}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <Input label="Task" name="task" value={formData.task || ''} onChange={handleChange} required />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="Assignee (Optional)" name="assignee" value={formData.assignee || ''} onChange={handleChange} />
+                    <Select label="Priority" name="priority" value={formData.priority} onChange={handleChange}>{TODO_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}</Select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <Input label="Due Date (Optional)" name="dueDate" type="date" value={toInputDate(formData.dueDate)} onChange={handleChange} />
+                     <Select label="Status" name="status" value={formData.status} onChange={handleChange}><option>Open</option><option>Done</option></Select>
+                </div>
+                <div className="flex justify-end gap-4 pt-4"><Button onClick={onClose} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button type="submit" className="bg-brand-indigo text-white hover:bg-indigo-700">Save</Button></div>
+            </form>
+        </Modal>
+    );
+};
 
 export default App;

@@ -9,21 +9,6 @@ const API_KEY = "sOlar-OasIs-Tr4cker-Secr3t-9xZ!q@w#";
 
 import { Project, Transaction, Todo, FollowUp, Category, Milestone, PaymentMilestone } from "./types";
 
-
-if (API_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE" || API_KEY === "YOUR_SECRET_API_KEY_HERE") {
-    const rootEl = document.getElementById('root');
-    if (rootEl) {
-        rootEl.innerHTML = `
-            <div style="font-family: sans-serif; padding: 2rem; text-align: center; background-color: #fff3f3; border: 1px solid #ffcccc; border-radius: 8px; margin: 2rem;">
-                <h1 style="color: #d93025;">Configuration Needed</h1>
-                <p style="font-size: 1.1rem; color: #333;">Please open the <strong>src/api.ts</strong> file and replace the placeholder values for <strong>API_URL</strong> and <strong>API_KEY</strong> with your actual credentials from Google Apps Script.</p>
-            </div>
-        `;
-    }
-    throw new Error("Please configure your API_URL and API_KEY in src/api.ts before running the application.");
-}
-
-
 type DataType = 'projects' | 'transactions' | 'todos' | 'followups' | 'categories';
 
 interface ApiResponse {
