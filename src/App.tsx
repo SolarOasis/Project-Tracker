@@ -163,6 +163,21 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         }
     };
 
+    const seedDefaultCategories = (uid: string) => {
+        const newCategories: Category[] = DEFAULT_CATEGORIES.map(name => ({
+            id: uuidv4(),
+            uid,
+            name,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }));
+        setCategories(newCategories);
+        // Asynchronously save them to backend without waiting
+        Promise.all(newCategories.map(cat => api.saveItem('categories', cat, true))).catch(err => {
+           console.error("Failed to save default categories:", err);
+        });
+    };
+
     useEffect(() => {
         const currentUserId = getOrCreateUserId();
         setUserId(currentUserId);
@@ -179,19 +194,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 if (data.categories && data.categories.length > 0) {
                     setCategories(data.categories);
                 } else {
-                    // For a new user, seed default categories and save them
-                    const newCategories: Category[] = DEFAULT_CATEGORIES.map(name => ({
-                        id: uuidv4(),
-                        uid: currentUserId,
-                        name,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }));
-                    setCategories(newCategories);
-                    // Asynchronously save them to backend without waiting
-                    Promise.all(newCategories.map(cat => api.saveItem('categories', cat, true))).catch(err => {
-                       console.error("Failed to save default categories:", err);
-                    });
+                    seedDefaultCategories(currentUserId);
                 }
 
                 const lastSelectedId = localStorage.getItem('last_selected_projectId');
@@ -223,14 +226,16 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         itemData: Partial<T>,
         existingItem: T | null
     ) => {
-        if (!userId) return;
+        if (!userId) {
+            showToast("User ID not found. Cannot save.", "error");
+            return;
+        }
         const isNew = !existingItem;
         const now = new Date().toISOString();
         const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
-
+    
         if (isNew) {
-            // For new items, wait for the server response to ensure we have a complete object.
-            // This prevents type errors from optimistic updates with partial data.
+            // For new items: No optimistic update. Create on server, then update state.
             const newItemData = {
                 ...itemData,
                 id: uuidv4(),
@@ -242,13 +247,14 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 const savedItem = await api.saveItem(type, newItemData, true);
                 setState(prev => [...prev, savedItem]);
             } catch (error) {
+                console.error("Failed to create item:", error);
                 showToast(`Error saving ${type}.`, "error");
             }
         } else {
-            // For existing items, optimistic updates are safer as we start with a full object.
+            // For existing items: Optimistic update is safe.
             const updatedItem = { ...existingItem!, ...itemData, updated_at: now } as T;
             
-            // Optimistic update
+            // Optimistically update the UI
             setState(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
             
             try {
@@ -256,8 +262,9 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 // Replace optimistic data with server-confirmed data
                 setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
             } catch (error) {
-                showToast(`Error updating ${type}. Reverting.`, "error");
-                // Revert
+                console.error("Failed to update item:", error);
+                showToast(`Error updating ${type}. Reverting changes.`, "error");
+                // Revert on failure
                 setState(prev => prev.map(item => item.id === existingItem!.id ? existingItem! : item));
             }
         }
