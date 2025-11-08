@@ -175,8 +175,25 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 setTransactions(data.transactions || []);
                 setTodos(data.todos || []);
                 setFollowUps(data.followups || []);
-                setCategories(data.categories || []);
                 
+                if (data.categories && data.categories.length > 0) {
+                    setCategories(data.categories);
+                } else {
+                    // For a new user, seed default categories and save them
+                    const newCategories: Category[] = DEFAULT_CATEGORIES.map(name => ({
+                        id: uuidv4(),
+                        uid: currentUserId,
+                        name,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }));
+                    setCategories(newCategories);
+                    // Asynchronously save them to backend without waiting
+                    Promise.all(newCategories.map(cat => api.saveItem('categories', cat, true))).catch(err => {
+                       console.error("Failed to save default categories:", err);
+                    });
+                }
+
                 const lastSelectedId = localStorage.getItem('last_selected_projectId');
                 if (lastSelectedId && data.projects.some(p => p.id === lastSelectedId)) {
                     setSelectedProjectIdState(lastSelectedId);
@@ -209,40 +226,38 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         if (!userId) return;
         const isNew = !existingItem;
         const now = new Date().toISOString();
+        const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
 
-        const fullItemData: T = isNew
-        ? ({
-            ...itemData,
-            id: uuidv4(),
-            uid: userId,
-            created_at: now,
-            updated_at: now,
-        } as T)
-        : ({
-            ...existingItem!,
-            ...itemData,
-            updated_at: now,
-        } as T);
-        
-        const setState = stateSetters[type] as unknown as React.Dispatch<React.SetStateAction<T[]>>;
-        
-        // Optimistic update
         if (isNew) {
-            setState(prev => [...prev, fullItemData]);
+            // For new items, we wait for the server response to ensure we have a complete object.
+            // This prevents type errors from optimistic updates with partial data.
+            const newItemData = {
+                ...itemData,
+                id: uuidv4(),
+                uid: userId,
+                created_at: now,
+                updated_at: now,
+            };
+            try {
+                const savedItem = await api.saveItem(type, newItemData, true);
+                setState(prev => [...prev, savedItem]);
+            } catch (error) {
+                showToast(`Error saving ${type}.`, "error");
+            }
         } else {
-            setState(prev => prev.map(item => item.id === fullItemData.id ? fullItemData : item));
-        }
-
-        try {
-            const savedItem = await api.saveItem(type, fullItemData, isNew);
-            // Replace optimistic data with server-confirmed data
-            setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
-        } catch (error) {
-            showToast(`Error saving ${type}. Reverting changes.`, "error");
-            // Revert optimistic update on failure
-            if (isNew) {
-                setState(prev => prev.filter(item => item.id !== fullItemData.id));
-            } else {
+            // For existing items, optimistic updates are safer as we start with a full object.
+            const updatedItem = { ...existingItem!, ...itemData, updated_at: now } as T;
+            
+            // Optimistic update
+            setState(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+            
+            try {
+                const savedItem = await api.saveItem(type, updatedItem, false);
+                // Replace optimistic data with server-confirmed data
+                setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
+            } catch (error) {
+                showToast(`Error updating ${type}. Reverting.`, "error");
+                // Revert
                 setState(prev => prev.map(item => item.id === existingItem!.id ? existingItem! : item));
             }
         }
