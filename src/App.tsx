@@ -9,7 +9,6 @@ import * as api from './api';
 // ===================================================================================
 // CONSTANTS & DEFAULTS
 // ===================================================================================
-const DEFAULT_CATEGORIES = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'];
 const DEFAULT_PAYMENT_MODES = ['Cash', 'Bank Transfer', 'Card', 'Cheque', 'Other'];
 const PROJECT_STATUSES: Project['status'][] = ['Draft', 'Proposal', 'Active', 'Ongoing', 'Closed'];
 const TODO_PRIORITIES: Todo['priority'][] = ['Low', 'Medium', 'High'];
@@ -180,7 +179,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                     setCategories(data.categories);
                 } else {
                     // Seed default categories for new users
-                    const newCategories: Category[] = DEFAULT_CATEGORIES.map(name => ({
+                    const newCategories: Category[] = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'].map(name => ({
                         id: uuidv4(),
                         uid: currentUserId,
                         name,
@@ -230,7 +229,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         const isNew = !existingItem;
         const now = new Date().toISOString();
         const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
-    
+
         if (isNew) {
             const newItemData = {
                 ...itemData,
@@ -240,23 +239,28 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 updated_at: now,
             };
             try {
+                // Wait for the server to return the complete, validated object
                 const savedItem = await api.saveItem<T>(type, newItemData, true);
+                // Only update state with the server-confirmed item
                 setState(prev => [...prev, savedItem]);
             } catch (error) {
                 console.error("Failed to create item:", error);
                 showToast(`Error saving ${type}.`, "error");
             }
         } else {
+            // Optimistic update for existing items
             const updatedItem = { ...existingItem!, ...itemData, updated_at: now } as T;
             
             setState(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
             
             try {
                 const savedItem = await api.saveItem<T>(type, updatedItem, false);
+                // Sync with server state
                 setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
             } catch (error) {
                 console.error("Failed to update item:", error);
                 showToast(`Error updating ${type}. Reverting changes.`, "error");
+                // Revert on failure
                 setState(prev => prev.map(item => item.id === existingItem!.id ? existingItem! : item));
             }
         }
