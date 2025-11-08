@@ -51,7 +51,11 @@ interface AppContextType {
     categories: Category[];
     selectedProjectId: string | null;
     setSelectedProjectId: (id: string | null) => void;
-    createOrUpdateItem: <T extends Timestampable & { id: string; uid: string; }>(type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', itemData: Partial<T>, existingItem: T | null) => Promise<void>;
+    createOrUpdateItem: (
+        type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
+        itemData: Partial<Project | Transaction | Todo | FollowUp | Category>,
+        existingItem: (Project | Transaction | Todo | FollowUp | Category) | null
+    ) => Promise<void>;
     deleteItem: (type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', id: string) => Promise<void>;
     loadDemoData: () => void;
     showToast: (message: string, type?: 'success' | 'error') => void;
@@ -209,18 +213,11 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         fetchData();
     }, []);
 
-    const stateSetters = {
-        projects: setProjects,
-        transactions: setTransactions,
-        todos: setTodos,
-        followups: setFollowUps,
-        categories: setCategories,
-    };
-
-    const createOrUpdateItem = async <T extends Timestampable & { id: string; uid: string; }>(
+    const _createOrUpdateItem = async <T extends Timestampable & { id: string; uid: string; }>(
         type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
         itemData: Partial<T>,
-        existingItem: T | null
+        existingItem: T | null,
+        setState: React.Dispatch<React.SetStateAction<T[]>>
     ) => {
         if (!userId) {
             showToast("User ID not found. Cannot save.", "error");
@@ -228,10 +225,8 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         }
         const isNew = !existingItem;
         const now = new Date().toISOString();
-        const setState = stateSetters[type] as unknown as React.Dispatch<React.SetStateAction<T[]>>;
 
         if (isNew) {
-            // Wait-for-server approach for new items to ensure type safety.
             const newItem = {
                 ...itemData,
                 id: uuidv4(),
@@ -242,53 +237,110 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
 
             try {
                 const savedItem = await api.saveItem<T>(type, newItem, true);
-                // Add the server-confirmed item to state. This is guaranteed to be a valid T.
                 setState(prev => [...prev, savedItem]);
             } catch (error) {
                 console.error("Failed to create item:", error);
                 showToast(`Error saving ${type}.`, "error");
-                 // No reversal needed because no optimistic update was performed.
             }
         } else {
-            // Optimistic update for existing items
             const updatedItem = { ...existingItem!, ...itemData, updated_at: now } as T;
             
             setState(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
             
             try {
                 const savedItem = await api.saveItem<T>(type, updatedItem, false);
-                // Sync with server state
                 setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
             } catch (error) {
                 console.error("Failed to update item:", error);
                 showToast(`Error updating ${type}. Reverting changes.`, "error");
-                // Revert on failure
                 setState(prev => prev.map(item => item.id === existingItem!.id ? existingItem! : item));
             }
         }
     };
+
+    const createOrUpdateItem = async (
+        type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
+        itemData: Partial<Project | Transaction | Todo | FollowUp | Category>,
+        existingItem: (Project | Transaction | Todo | FollowUp | Category) | null
+    ) => {
+        switch (type) {
+            case 'projects':
+                await _createOrUpdateItem<Project>(type, itemData as Partial<Project>, existingItem as Project | null, setProjects);
+                break;
+            case 'transactions':
+                await _createOrUpdateItem<Transaction>(type, itemData as Partial<Transaction>, existingItem as Transaction | null, setTransactions);
+                break;
+            case 'todos':
+                await _createOrUpdateItem<Todo>(type, itemData as Partial<Todo>, existingItem as Todo | null, setTodos);
+                break;
+            case 'followups':
+                await _createOrUpdateItem<FollowUp>(type, itemData as Partial<FollowUp>, existingItem as FollowUp | null, setFollowUps);
+                break;
+            case 'categories':
+                await _createOrUpdateItem<Category>(type, itemData as Partial<Category>, existingItem as Category | null, setCategories);
+                break;
+        }
+    };
     
     const deleteItem = async (type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', id: string) => {
-        const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<any[]>>;
-        const originalState = [...(type === 'projects' ? projects : type === 'transactions' ? transactions : type === 'todos' ? todos : type === 'followups' ? followUps : categories)];
-        
-        setState(prev => prev.filter(item => item.id !== id));
-        if (type === 'projects') {
-            setTransactions(prev => prev.filter(t => t.project_id !== id));
-            setTodos(prev => prev.filter(t => t.project_id !== id));
-            setFollowUps(prev => prev.filter(f => f.project_id !== id));
-            if (selectedProjectId === id) {
-                const remaining = projects.filter(p => p.id !== id);
-                setSelectedProjectId(remaining.length > 0 ? remaining[0].id : null);
+        const revert = async (revertFn: () => void) => {
+            try {
+                await api.deleteItemById(type, id);
+            } catch (error) {
+                showToast(`Error deleting. Reverting.`, "error");
+                revertFn();
             }
-        }
+        };
 
-        try {
-            await api.deleteItemById(type, id);
-        } catch (error) {
-            showToast(`Error deleting. Reverting.`, "error");
-            // Revert
-            setState(originalState);
+        switch (type) {
+            case 'projects': {
+                const originalProjects = [...projects];
+                const originalTransactions = [...transactions];
+                const originalTodos = [...todos];
+                const originalFollowUps = [...followUps];
+                
+                setProjects(prev => prev.filter(p => p.id !== id));
+                setTransactions(prev => prev.filter(t => t.project_id !== id));
+                setTodos(prev => prev.filter(t => t.project_id !== id));
+                setFollowUps(prev => prev.filter(f => f.project_id !== id));
+
+                if (selectedProjectId === id) {
+                    const remaining = originalProjects.filter(p => p.id !== id);
+                    setSelectedProjectId(remaining.length > 0 ? remaining[0].id : null);
+                }
+
+                await revert(() => {
+                    setProjects(originalProjects);
+                    setTransactions(originalTransactions);
+                    setTodos(originalTodos);
+                    setFollowUps(originalFollowUps);
+                });
+                break;
+            }
+            case 'transactions': {
+                const originalState = [...transactions];
+                setTransactions(prev => prev.filter(item => item.id !== id));
+                await revert(() => setTransactions(originalState));
+                break;
+            }
+            case 'todos': {
+                const originalState = [...todos];
+                setTodos(prev => prev.filter(item => item.id !== id));
+                await revert(() => setTodos(originalState));
+                break;
+            }
+            case 'followups': {
+                const originalState = [...followUps];
+                setFollowUps(prev => prev.filter(item => item.id !== id));
+                await revert(() => setFollowUps(originalState));
+                break;
+            }
+            case 'categories': {
+                const originalState = [...categories];
+                setCategories(prev => prev.filter(item => item.id !== id));
+                await revert(() => setCategories(originalState));
+                break;
+            }
         }
     };
     
