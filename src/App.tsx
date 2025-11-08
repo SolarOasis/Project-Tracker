@@ -229,7 +229,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         const setState = stateSetters[type] as React.Dispatch<React.SetStateAction<T[]>>;
 
         if (isNew) {
-            // For new items, we wait for the server response to ensure we have a complete object.
+            // For new items, wait for the server response to ensure we have a complete object.
             // This prevents type errors from optimistic updates with partial data.
             const newItemData = {
                 ...itemData,
