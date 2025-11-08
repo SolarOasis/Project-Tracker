@@ -51,12 +51,19 @@ interface AppContextType {
     categories: Category[];
     selectedProjectId: string | null;
     setSelectedProjectId: (id: string | null) => void;
-    createOrUpdateItem: (
-        type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
-        itemData: Partial<Project | Transaction | Todo | FollowUp | Category>,
-        existingItem: (Project | Transaction | Todo | FollowUp | Category) | null
-    ) => Promise<void>;
-    deleteItem: (type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', id: string) => Promise<void>;
+    
+    saveProject: (data: Partial<Project>, existing: Project | null) => Promise<void>;
+    saveTransaction: (data: Partial<Transaction>, existing: Transaction | null) => Promise<void>;
+    saveTodo: (data: Partial<Todo>, existing: Todo | null) => Promise<void>;
+    saveFollowUp: (data: Partial<FollowUp>, existing: FollowUp | null) => Promise<void>;
+    saveCategory: (data: Partial<Category>, existing: Category | null) => Promise<void>;
+
+    deleteProject: (id: string) => Promise<void>;
+    deleteTransaction: (id: string) => Promise<void>;
+    deleteTodo: (id: string) => Promise<void>;
+    deleteFollowUp: (id: string) => Promise<void>;
+    deleteCategory: (id: string) => Promise<void>;
+
     loadDemoData: () => void;
     showToast: (message: string, type?: 'success' | 'error') => void;
     updateProjectMilestones: (projectId: string, milestones: Milestone[]) => Promise<void>;
@@ -107,7 +114,7 @@ const formatCurrency = (amount?: number) => {
 };
 
 const exportToCsv = (filename: string, rows: (string | number | undefined | null)[][]) => {
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(",")).join('\n');
+    const csvContent = "data:text/csv;charset=utf--8," + rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(",")).join('\n');
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
     link.setAttribute("download", `${filename}.csv`);
@@ -120,7 +127,7 @@ const isEmailValid = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 const isPhoneValid = (phone: string) => /^\+?[0-9\s-()]{7,}$/.test(phone);
 
 // ===================================================================================
-// SVG ICONS & UI COMPONENTS
+// SVG IONS & UI COMPONENTS
 // ===================================================================================
 const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>;
 const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>;
@@ -132,7 +139,7 @@ const Card: FC<PropsWithChildren<{ className?: string }>> = ({ children, classNa
 const Button: FC<PropsWithChildren<{ onClick?: () => void; className?: string; type?: "button" | "submit" | "reset"; disabled?: boolean; }>> = ({ children, onClick, className, type = "button", disabled }) => <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>{children}</button>;
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<input id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
 const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<textarea id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-const Select: FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string, error?: string, children: React.ReactNode }> = ({ label, name, error, children, ...props }) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<select id={name} name={name} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props}>{children}</select>{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>;
+const Select: FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string, error?: string, children: React.ReactNode }> = ({ label, name, error, children, ...props }) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<select id={name} name={name} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props}>{children}</select>{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
 const Modal: FC<PropsWithChildren<{ isOpen: boolean; onClose: () => void; title: string; }>> = ({ isOpen, onClose, title, children }) => { if (!isOpen) return null; return (<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}><div className="p-6 border-b sticky top-0 bg-white z-10"><div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-brand-indigo">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div></div><div className="p-6">{children}</div></div></div>); };
 const Toast: FC<{ message: string; show: boolean; type?: 'success' | 'error' }> = ({ message, show, type = 'success' }) => <div className={`fixed bottom-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${show ? 'translate-x-0' : 'translate-x-full'} ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{message}</div>;
 const EmptyState: FC<{ title: string; message: string; action?: React.ReactNode }> = ({ title, message, action }) => <div className="text-center py-12 px-6 bg-gray-50 rounded-lg"><h3 className="text-lg font-medium text-gray-900">{title}</h3><p className="mt-1 text-sm text-gray-500">{message}</p>{action && <div className="mt-6">{action}</div>}</div>;
@@ -182,7 +189,6 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                 if (data.categories && data.categories.length > 0) {
                     setCategories(data.categories);
                 } else {
-                    // Seed default categories for new users
                     const newCategories: Category[] = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'].map(name => ({
                         id: uuidv4(),
                         uid: currentUserId,
@@ -191,7 +197,6 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
                         updated_at: new Date().toISOString()
                     }));
                     setCategories(newCategories);
-                    // Asynchronously save them to backend without waiting
                     Promise.all(newCategories.map(cat => api.saveItem('categories', cat, true))).catch(err => {
                        console.error("Failed to save default categories:", err);
                     });
@@ -227,14 +232,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         const now = new Date().toISOString();
 
         if (isNew) {
-            const newItem = {
-                ...itemData,
-                id: uuidv4(),
-                uid: userId,
-                created_at: now,
-                updated_at: now,
-            } as T;
-
+            const newItem = { ...itemData, id: uuidv4(), uid: userId, created_at: now, updated_at: now } as T;
             try {
                 const savedItem = await api.saveItem<T>(type, newItem, true);
                 setState(prev => [...prev, savedItem]);
@@ -244,105 +242,70 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
             }
         } else {
             const updatedItem = { ...existingItem!, ...itemData, updated_at: now } as T;
-            
+            const originalState = [...(setState as any)(s => s)]; // Store original for revert
             setState(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
-            
             try {
                 const savedItem = await api.saveItem<T>(type, updatedItem, false);
                 setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
             } catch (error) {
                 console.error("Failed to update item:", error);
                 showToast(`Error updating ${type}. Reverting changes.`, "error");
-                setState(prev => prev.map(item => item.id === existingItem!.id ? existingItem! : item));
+                setState(originalState);
             }
         }
     };
 
-    const createOrUpdateItem = async (
+    const _deleteItem = async <T extends {id: string}>(
         type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
-        itemData: Partial<Project | Transaction | Todo | FollowUp | Category>,
-        existingItem: (Project | Transaction | Todo | FollowUp | Category) | null
+        id: string,
+        setState: React.Dispatch<React.SetStateAction<T[]>>
     ) => {
-        switch (type) {
-            case 'projects':
-                await _createOrUpdateItem<Project>(type, itemData as Partial<Project>, existingItem as Project | null, setProjects);
-                break;
-            case 'transactions':
-                await _createOrUpdateItem<Transaction>(type, itemData as Partial<Transaction>, existingItem as Transaction | null, setTransactions);
-                break;
-            case 'todos':
-                await _createOrUpdateItem<Todo>(type, itemData as Partial<Todo>, existingItem as Todo | null, setTodos);
-                break;
-            case 'followups':
-                await _createOrUpdateItem<FollowUp>(type, itemData as Partial<FollowUp>, existingItem as FollowUp | null, setFollowUps);
-                break;
-            case 'categories':
-                await _createOrUpdateItem<Category>(type, itemData as Partial<Category>, existingItem as Category | null, setCategories);
-                break;
+        const originalState = [...(setState as any)(s => s)];
+        setState(prev => prev.filter(item => item.id !== id));
+        try {
+            await api.deleteItemById(type, id);
+        } catch (error) {
+            showToast(`Error deleting. Reverting.`, "error");
+            setState(originalState);
+        }
+    }
+
+    const saveProject = (data: Partial<Project>, existing: Project | null) => _createOrUpdateItem<Project>('projects', data, existing, setProjects);
+    const saveTransaction = (data: Partial<Transaction>, existing: Transaction | null) => _createOrUpdateItem<Transaction>('transactions', data, existing, setTransactions);
+    const saveTodo = (data: Partial<Todo>, existing: Todo | null) => _createOrUpdateItem<Todo>('todos', data, existing, setTodos);
+    const saveFollowUp = (data: Partial<FollowUp>, existing: FollowUp | null) => _createOrUpdateItem<FollowUp>('followups', data, existing, setFollowUps);
+    const saveCategory = (data: Partial<Category>, existing: Category | null) => _createOrUpdateItem<Category>('categories', data, existing, setCategories);
+
+    const deleteProject = async (id: string) => {
+        const originalProjects = [...projects];
+        const originalTransactions = [...transactions];
+        const originalTodos = [...todos];
+        const originalFollowUps = [...followUps];
+        
+        setProjects(prev => prev.filter(p => p.id !== id));
+        setTransactions(prev => prev.filter(t => t.project_id !== id));
+        setTodos(prev => prev.filter(t => t.project_id !== id));
+        setFollowUps(prev => prev.filter(f => f.project_id !== id));
+
+        if (selectedProjectId === id) {
+            const remaining = originalProjects.filter(p => p.id !== id);
+            setSelectedProjectId(remaining.length > 0 ? remaining[0].id : null);
+        }
+
+        try {
+            await api.deleteItemById('projects', id);
+        } catch (error) {
+            showToast(`Error deleting project. Reverting.`, "error");
+            setProjects(originalProjects);
+            setTransactions(originalTransactions);
+            setTodos(originalTodos);
+            setFollowUps(originalFollowUps);
         }
     };
-    
-    const deleteItem = async (type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories', id: string) => {
-        const revert = async (revertFn: () => void) => {
-            try {
-                await api.deleteItemById(type, id);
-            } catch (error) {
-                showToast(`Error deleting. Reverting.`, "error");
-                revertFn();
-            }
-        };
-
-        switch (type) {
-            case 'projects': {
-                const originalProjects = [...projects];
-                const originalTransactions = [...transactions];
-                const originalTodos = [...todos];
-                const originalFollowUps = [...followUps];
-                
-                setProjects(prev => prev.filter(p => p.id !== id));
-                setTransactions(prev => prev.filter(t => t.project_id !== id));
-                setTodos(prev => prev.filter(t => t.project_id !== id));
-                setFollowUps(prev => prev.filter(f => f.project_id !== id));
-
-                if (selectedProjectId === id) {
-                    const remaining = originalProjects.filter(p => p.id !== id);
-                    setSelectedProjectId(remaining.length > 0 ? remaining[0].id : null);
-                }
-
-                await revert(() => {
-                    setProjects(originalProjects);
-                    setTransactions(originalTransactions);
-                    setTodos(originalTodos);
-                    setFollowUps(originalFollowUps);
-                });
-                break;
-            }
-            case 'transactions': {
-                const originalState = [...transactions];
-                setTransactions(prev => prev.filter(item => item.id !== id));
-                await revert(() => setTransactions(originalState));
-                break;
-            }
-            case 'todos': {
-                const originalState = [...todos];
-                setTodos(prev => prev.filter(item => item.id !== id));
-                await revert(() => setTodos(originalState));
-                break;
-            }
-            case 'followups': {
-                const originalState = [...followUps];
-                setFollowUps(prev => prev.filter(item => item.id !== id));
-                await revert(() => setFollowUps(originalState));
-                break;
-            }
-            case 'categories': {
-                const originalState = [...categories];
-                setCategories(prev => prev.filter(item => item.id !== id));
-                await revert(() => setCategories(originalState));
-                break;
-            }
-        }
-    };
+    const deleteTransaction = (id: string) => _deleteItem<Transaction>('transactions', id, setTransactions);
+    const deleteTodo = (id: string) => _deleteItem<Todo>('todos', id, setTodos);
+    const deleteFollowUp = (id: string) => _deleteItem<FollowUp>('followups', id, setFollowUps);
+    const deleteCategory = (id: string) => _deleteItem<Category>('categories', id, setCategories);
     
     const updateProjectMilestones = async (projectId: string, milestones: Milestone[]) => {
         const project = projects.find(p => p.id === projectId);
@@ -376,7 +339,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
     
     const loadDemoData = async () => { /* Demo data can be complex with backend, disabling for now */ showToast("Demo data not available with backend.", "error"); };
 
-    const value = { userId, projects, transactions, todos, followUps, categories, selectedProjectId, setSelectedProjectId, createOrUpdateItem, deleteItem, loadDemoData, showToast, updateProjectMilestones, updatePaymentMilestones };
+    const value = { userId, projects, transactions, todos, followUps, categories, selectedProjectId, setSelectedProjectId, loadDemoData, showToast, updateProjectMilestones, updatePaymentMilestones, saveProject, saveTransaction, saveTodo, saveFollowUp, saveCategory, deleteProject, deleteTransaction, deleteTodo, deleteFollowUp, deleteCategory };
 
     if (isLoading) {
         return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="text-xl font-semibold text-brand-indigo">Loading Solar Oasis Tracker...</div></div>;
@@ -397,28 +360,23 @@ const App: FC = () => (
 );
 
 const AppLayout: FC = () => {
-    const { projects, selectedProjectId } = useAppContext();
+    const { deleteProject } = useAppContext();
     const [activeModal, setActiveModal] = useState<ModalType>(null);
     const [editingItem, setEditingItem] = useState<any>(null);
-    const [itemToDelete, setItemToDelete] = useState<{ type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories'; id: string; name: string } | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<{ onConfirm: () => Promise<void>; name: string } | null>(null);
 
     const handleOpenModal = (type: ModalType, item: any = null) => {
         setEditingItem(item);
         setActiveModal(type);
     };
     
-    const handleItemDelete = (type: 'transactions' | 'todos' | 'followups', id: string, name: string) => {
-        setItemToDelete({ type, id, name });
-        setActiveModal('confirmDelete');
-    };
-
     const handleCloseModal = () => {
         setEditingItem(null);
         setActiveModal(null);
         setItemToDelete(null);
     };
 
-    const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId), [projects, selectedProjectId]);
+    const selectedProject = useAppContext().projects.find(p => p.id === useAppContext().selectedProjectId);
 
     return (
         <div className="h-screen w-screen bg-gray-100 flex flex-col font-sans">
@@ -435,9 +393,8 @@ const AppLayout: FC = () => {
                         <ProjectDetail
                             project={selectedProject}
                             onEdit={() => handleOpenModal('project', selectedProject)}
-                            onDelete={() => {setItemToDelete({ type: 'projects', id: selectedProject.id, name: 'Project' }); setActiveModal('confirmDelete');}}
+                            onDelete={() => {setItemToDelete({ onConfirm: () => deleteProject(selectedProject.id), name: `Project "${selectedProject.name}"` }); setActiveModal('confirmDelete');}}
                             openModal={handleOpenModal}
-                            onDeleteItem={handleItemDelete}
                         />
                    ) : (
                        <div className="flex items-center justify-center h-full">
@@ -499,28 +456,28 @@ const ProjectSidebar: FC<{onNewProject: () => void}> = ({onNewProject}) => {
     )
 };
 
-const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { type: any; id: string; name: string } | null; handleCloseModal: () => void; }> = ({ activeModal, editingItem, itemToDelete, handleCloseModal }) => {
-    const { createOrUpdateItem, showToast, categories, selectedProjectId, deleteItem } = useAppContext();
+const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { onConfirm: () => Promise<void>; name: string } | null; handleCloseModal: () => void; }> = ({ activeModal, editingItem, itemToDelete, handleCloseModal }) => {
+    const { saveProject, saveTransaction, saveFollowUp, saveTodo, saveCategory, deleteCategory, showToast, categories, selectedProjectId } = useAppContext();
     const project = useAppContext().projects.find(p => p.id === selectedProjectId);
 
     const handleDelete = async () => {
         if (!itemToDelete) return;
-        await deleteItem(itemToDelete.type, itemToDelete.id);
+        await itemToDelete.onConfirm();
         showToast(`${itemToDelete.name} deleted successfully.`);
         handleCloseModal();
     }
     
     return (
         <>
-            <ProjectFormModal isOpen={activeModal === 'project'} onClose={handleCloseModal} project={editingItem} onSave={createOrUpdateItem} onSuccess={showToast} />
+            <ProjectFormModal isOpen={activeModal === 'project'} onClose={handleCloseModal} project={editingItem} onSave={saveProject} onSuccess={showToast} />
             {project && (
                 <>
-                <TransactionFormModal isOpen={activeModal === 'transaction'} onClose={handleCloseModal} transaction={editingItem} projectId={project.id} onSave={createOrUpdateItem} onSuccess={showToast} />
-                <FollowUpFormModal isOpen={activeModal === 'followup'} onClose={handleCloseModal} followUp={editingItem} projectId={project.id} onSave={createOrUpdateItem} onSuccess={showToast} />
-                <TodoFormModal isOpen={activeModal === 'todo'} onClose={handleCloseModal} todo={editingItem} projectId={project.id} onSave={createOrUpdateItem} onSuccess={showToast} />
+                <TransactionFormModal isOpen={activeModal === 'transaction'} onClose={handleCloseModal} transaction={editingItem} projectId={project.id} onSave={saveTransaction} onSuccess={showToast} />
+                <FollowUpFormModal isOpen={activeModal === 'followup'} onClose={handleCloseModal} followUp={editingItem} projectId={project.id} onSave={saveFollowUp} onSuccess={showToast} />
+                <TodoFormModal isOpen={activeModal === 'todo'} onClose={handleCloseModal} todo={editingItem} projectId={project.id} onSave={saveTodo} onSuccess={showToast} />
                 </>
             )}
-            <CategoryManagerModal isOpen={activeModal === 'category'} onClose={handleCloseModal} categories={categories} onSave={createOrUpdateItem} onDelete={(id: string) => deleteItem('categories', id)} onSuccess={showToast} />
+            <CategoryManagerModal isOpen={activeModal === 'category'} onClose={handleCloseModal} categories={categories} onSave={saveCategory} onDelete={deleteCategory} onSuccess={showToast} />
             <Modal isOpen={activeModal === 'confirmDelete'} onClose={handleCloseModal} title="Confirm Deletion">
                 <p>Are you sure you want to delete this {itemToDelete?.name.toLowerCase()}? This action cannot be undone.</p>
                 <div className="mt-6 flex justify-end gap-4"><Button onClick={handleCloseModal} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">Delete</Button></div>
@@ -529,8 +486,10 @@ const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { typ
     )
 };
 
-const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => void; openModal: (type: ModalType, item?: any) => void; onDeleteItem: (type: 'transactions' | 'todos' | 'followups', id: string, name: string) => void; }> = ({ project, onEdit, onDelete, openModal, onDeleteItem }) => {
-    const { transactions, todos, followUps } = useAppContext();
+const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => void; openModal: (type: ModalType, item?: any) => void; }> = ({ project, onEdit, onDelete, openModal }) => {
+    const { transactions, todos, followUps, deleteTransaction, deleteFollowUp, deleteTodo, saveTodo } = useAppContext();
+    const [activeModal, setActiveModal] = useState<ModalType>(null);
+    const [itemToDelete, setItemToDelete] = useState<{ onConfirm: () => Promise<void>; name: string } | null>(null);
     const [activeTab, setActiveTab] = useState('transactions');
     const printRef = useRef<HTMLDivElement>(null);
     const projectTransactions = useMemo(() => transactions.filter(t => t.project_id === project.id), [transactions, project.id]);
@@ -562,6 +521,11 @@ const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => 
         }).save();
     };
 
+    const confirmDelete = (onConfirm: () => Promise<void>, name: string) => {
+      setItemToDelete({ onConfirm, name });
+      setActiveModal('confirmDelete');
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-start">
@@ -581,14 +545,15 @@ const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => 
             <div className="no-print">
                 <div className="border-b border-gray-200"><nav className="-mb-px flex space-x-8" aria-label="Tabs">{['transactions', 'breakdowns', 'followups', 'todos', 'reports'].map(tab => <button key={tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-brand-yellow text-brand-indigo' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>{tab}</button>)}</nav></div>
                 <div className="mt-8">
-                    {activeTab === 'transactions' && <TransactionsTab transactions={projectTransactions} openModal={openModal} onDeleteItem={onDeleteItem} />}
+                    {activeTab === 'transactions' && <TransactionsTab transactions={projectTransactions} openModal={openModal} onDelete={(id) => confirmDelete(() => deleteTransaction(id), 'Transaction')} />}
                     {activeTab === 'breakdowns' && <BreakdownsTab transactions={projectTransactions} />}
-                    {activeTab === 'followups' && <FollowUpsTab followUps={projectFollowUps} openModal={openModal} onDeleteItem={onDeleteItem} />}
-                    {activeTab === 'todos' && <TodosTab todos={projectTodos} openModal={openModal} onDeleteItem={onDeleteItem} />}
+                    {activeTab === 'followups' && <FollowUpsTab followUps={projectFollowUps} openModal={openModal} onDelete={(id) => confirmDelete(() => deleteFollowUp(id), 'Follow-up')} />}
+                    {activeTab === 'todos' && <TodosTab todos={projectTodos} openModal={openModal} onToggle={(todo) => saveTodo({ status: todo.status === 'Open' ? 'Done' : 'Open' }, todo)} onDelete={(id) => confirmDelete(() => deleteTodo(id), 'To-do')} />}
                     {activeTab === 'reports' && <ReportsTab project={project} transactions={projectTransactions} followUps={projectFollowUps} todos={projectTodos} handlePrint={handlePrint} />}
                 </div>
             </div>
             <div className="hidden print-container" ref={printRef}><PrintableView project={project} transactions={projectTransactions} calcs={calculations} /></div>
+            <Modals activeModal={activeModal} editingItem={null} itemToDelete={itemToDelete} handleCloseModal={() => { setActiveModal(null); setItemToDelete(null); }}/>
         </div>
     );
 };
@@ -640,7 +605,7 @@ const PaymentMilestonesTracker: FC<{ project: Project }> = ({ project }) => {
     return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Payment Milestones</h4><div className="space-y-3">{project.paymentMilestones.map((m, i) => (<div key={i} className="grid grid-cols-3 gap-2 items-center text-sm"><span className="font-medium text-gray-700">{m.label}</span><Input type="number" value={m.amount} onChange={(e) => handleUpdate(i, 'amount', parseFloat(e.target.value) || 0)} className="text-right" /><Select value={m.status} onChange={(e) => handleUpdate(i, 'status', e.target.value)}><option>Pending</option><option>Received</option></Select></div>))}</div><div className="border-t mt-4 pt-3 text-sm"><div className="flex justify-between"><span>Total Amount:</span> <span className="font-semibold">{formatCurrency(totalAmount)}</span></div><div className="flex justify-between"><span>Total Received:</span> <span className="font-semibold text-green-600">{formatCurrency(totalReceived)}</span></div></div></Card>);
 };
 
-const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: ModalType, item?: any) => void; onDeleteItem: (type: 'transactions', id: string, name: string) => void; }> = ({ transactions, openModal, onDeleteItem }) => {
+const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }> = ({ transactions, openModal, onDelete }) => {
     const { categories } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({ category: 'all', type: 'all' });
@@ -657,7 +622,7 @@ const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: Modal
         <td className="p-3">{tx.description}</td>
         <td className="p-3">{tx.category}</td>
         <td className={`p-3 text-right font-semibold ${tx.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(tx.amount)}</td>
-        <td className="p-3 text-right"><div className="flex justify-end gap-2"><button onClick={() => openModal('transaction', tx)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon /></button><button onClick={() => onDeleteItem('transactions', tx.id, 'Transaction')} className="text-gray-400 hover:text-red-600"><TrashIcon /></button></div></td>
+        <td className="p-3 text-right"><div className="flex justify-end gap-2"><button onClick={() => openModal('transaction', tx)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon /></button><button onClick={() => onDelete(tx.id)} className="text-gray-400 hover:text-red-600"><TrashIcon /></button></div></td>
     </tr>))}</tbody></table></div> : <EmptyState title="No Transactions Found" message="Add an income or expense transaction to get started." />}</Card>);
 };
 
@@ -699,33 +664,27 @@ const BreakdownsTab: FC<{ transactions: Transaction[] }> = ({ transactions }) =>
     );
 };
 
-const FollowUpsTab: FC<{ followUps: FollowUp[]; openModal: (type: ModalType, item?: any) => void; onDeleteItem: (type: 'followups', id: string, name: string) => void; }> = ({ followUps, openModal, onDeleteItem }) => {
+const FollowUpsTab: FC<{ followUps: FollowUp[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }> = ({ followUps, openModal, onDelete }) => {
     const sortedFollowUps = useMemo(() => [...followUps].sort((a, b) => (parseISO(b.date)?.getTime() || 0) - (parseISO(a.date)?.getTime() || 0)), [followUps]);
     const overdue = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) > 0);
     const upcoming = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) <= 0);
     const completed = sortedFollowUps.filter(f => f.status === 'Completed');
 
     const FollowUpList: FC<{ title: string, items: FollowUp[], color: string }> = ({ title, items, color }) => (
-        <div><h4 className={`font-bold text-lg mb-4 text-${color}-600`}>{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-3">{items.map(f => (<div key={f.id} className="p-4 rounded-lg bg-white shadow-sm border-l-4" style={{borderColor: color}}><div className="flex justify-between items-start"><div><p className="font-semibold">{f.title}</p><p className="text-sm text-gray-600">{f.details}</p><p className="text-xs text-gray-400 mt-2">Logged on {formatDate(f.date)} by {f.owner}</p>{f.nextFollowUpDate && <p className="text-xs text-gray-500 font-medium">Next follow-up: {formatDate(f.nextFollowUpDate)}</p>}</div><div className="flex gap-2"><button onClick={() => openModal('followup', f)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDeleteItem('followups', f.id, 'Follow-up')} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div></div>))}</div> : <p className="text-sm text-gray-500">None.</p>}</div>
+        <div><h4 className={`font-bold text-lg mb-4 text-${color}-600`}>{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-3">{items.map(f => (<div key={f.id} className="p-4 rounded-lg bg-white shadow-sm border-l-4" style={{borderColor: color}}><div className="flex justify-between items-start"><div><p className="font-semibold">{f.title}</p><p className="text-sm text-gray-600">{f.details}</p><p className="text-xs text-gray-400 mt-2">Logged on {formatDate(f.date)} by {f.owner}</p>{f.nextFollowUpDate && <p className="text-xs text-gray-500 font-medium">Next follow-up: {formatDate(f.nextFollowUpDate)}</p>}</div><div className="flex gap-2"><button onClick={() => openModal('followup', f)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(f.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div></div>))}</div> : <p className="text-sm text-gray-500">None.</p>}</div>
     );
 
     return <Card><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-brand-indigo">Client Follow-Ups</h3><Button onClick={() => openModal('followup')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add Follow-Up</Button></div><div className="space-y-8"><FollowUpList title="Overdue" items={overdue} color="red" /><FollowUpList title="Upcoming" items={upcoming} color="blue" /><FollowUpList title="Completed" items={completed} color="gray" /></div></Card>;
 };
 
-const TodosTab: FC<{ todos: Todo[], openModal: (type: ModalType, item?: any) => void; onDeleteItem: (type: 'todos', id: string, name: string) => void; }> = ({ todos, openModal, onDeleteItem }) => {
-    const { createOrUpdateItem } = useAppContext();
+const TodosTab: FC<{ todos: Todo[], openModal: (type: ModalType, item?: any) => void; onToggle: (todo: Todo) => void; onDelete: (id: string) => void; }> = ({ todos, openModal, onToggle, onDelete }) => {
     const openTodos = useMemo(() => todos.filter(t => t.status === 'Open').sort((a,b) => TODO_PRIORITIES.indexOf(b.priority) - TODO_PRIORITIES.indexOf(a.priority)), [todos]);
     const doneTodos = useMemo(() => todos.filter(t => t.status === 'Done'), [todos]);
-
-    const handleToggleStatus = (todo: Todo) => {
-      const newStatus = todo.status === 'Open' ? 'Done' : 'Open';
-      createOrUpdateItem('todos', { status: newStatus }, todo);
-    }
     
     const priorityColor = (priority: 'Low' | 'Medium' | 'High') => ({ Low: 'bg-green-100 text-green-800', Medium: 'bg-yellow-100 text-yellow-800', High: 'bg-red-100 text-red-800' }[priority]);
 
     const TodoList: FC<{ title: string, items: Todo[] }> = ({ title, items }) => (
-        <div><h4 className="font-bold text-lg mb-4">{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-2">{items.map(t => (<div key={t.id} className={`flex items-center p-3 rounded-lg ${t.status === 'Done' ? 'bg-gray-100' : 'bg-white shadow-sm'}`}><input type="checkbox" checked={t.status === 'Done'} onChange={() => handleToggleStatus(t)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><div className="ml-4 flex-1"><p className={`${t.status === 'Done' ? 'line-through text-gray-500' : ''}`}>{t.task}</p><div className="text-xs text-gray-500 flex items-center gap-4 mt-1"><span>Due: {formatDate(t.dueDate)}</span>{t.assignee && <span>To: {t.assignee}</span>}<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(t.priority)}`}>{t.priority}</span></div></div><div className="flex gap-2"><button onClick={() => openModal('todo', t)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDeleteItem('todos', t.id, 'To-Do')} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div>))}</div> : <p className="text-sm text-gray-500">All caught up!</p>}</div>
+        <div><h4 className="font-bold text-lg mb-4">{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-2">{items.map(t => (<div key={t.id} className={`flex items-center p-3 rounded-lg ${t.status === 'Done' ? 'bg-gray-100' : 'bg-white shadow-sm'}`}><input type="checkbox" checked={t.status === 'Done'} onChange={() => onToggle(t)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><div className="ml-4 flex-1"><p className={`${t.status === 'Done' ? 'line-through text-gray-500' : ''}`}>{t.task}</p><div className="text-xs text-gray-500 flex items-center gap-4 mt-1"><span>Due: {formatDate(t.dueDate)}</span>{t.assignee && <span>To: {t.assignee}</span>}<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(t.priority)}`}>{t.priority}</span></div></div><div className="flex gap-2"><button onClick={() => openModal('todo', t)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(t.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div>))}</div> : <p className="text-sm text-gray-500">All caught up!</p>}</div>
     );
     
     return <Card><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-brand-indigo">To-Do List</h3><Button onClick={() => openModal('todo')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add To-Do</Button></div><div className="space-y-8"><TodoList title="Open" items={openTodos} /><TodoList title="Done" items={doneTodos} /></div></Card>;
@@ -764,7 +723,7 @@ const PrintableView: FC<{ project: Project; transactions: Transaction[]; calcs: 
 // MODAL FORM IMPLEMENTATIONS
 // ===================================================================================
 
-const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Project | null; onSave: (type: 'projects', data: Partial<Project>, existing: Project | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, project, onSave, onSuccess }) => {
+const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Project | null; onSave: (data: Partial<Project>, existing: Project | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, project, onSave, onSuccess }) => {
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -804,7 +763,7 @@ const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Proj
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
-        onSave('projects', formData, project);
+        onSave(formData, project);
         onSuccess(`Project ${project ? 'updated' : 'created'} successfully!`);
         onClose();
     };
@@ -851,7 +810,7 @@ const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Proj
     );
 };
 
-const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transaction: Transaction | null; projectId: string; onSave: (type: 'transactions', data: Partial<Transaction>, existing: Transaction | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, transaction, projectId, onSave, onSuccess }) => {
+const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transaction: Transaction | null; projectId: string; onSave: (data: Partial<Transaction>, existing: Transaction | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, transaction, projectId, onSave, onSuccess }) => {
     const { categories } = useAppContext();
     const [formData, setFormData] = useState<Partial<Transaction>>({});
 
@@ -869,7 +828,7 @@ const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transacti
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.description || !formData.amount) return;
-        onSave('transactions', { ...formData, project_id: projectId }, transaction);
+        onSave({ ...formData, project_id: projectId }, transaction);
         onSuccess(`Transaction ${transaction ? 'updated' : 'added'}!`);
         onClose();
     };
@@ -904,11 +863,11 @@ const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transacti
     );
 };
 
-const CategoryManagerModal: FC<{ isOpen: boolean; onClose: () => void; categories: Category[]; onSuccess: (msg: string) => void; onSave: (type: 'categories', data: Partial<Category>, existing: Category | null) => void; onDelete: (id: string) => void; }> = ({ isOpen, onClose, categories, onSuccess, onSave, onDelete }) => {
+const CategoryManagerModal: FC<{ isOpen: boolean; onClose: () => void; categories: Category[]; onSuccess: (msg: string) => void; onSave: (data: Partial<Category>, existing: Category | null) => void; onDelete: (id: string) => void; }> = ({ isOpen, onClose, categories, onSuccess, onSave, onDelete }) => {
     const [newCategoryName, setNewCategoryName] = useState('');
     const handleAddCategory = () => {
         if (newCategoryName.trim() && !categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
-            onSave('categories', { name: newCategoryName.trim() }, null);
+            onSave({ name: newCategoryName.trim() }, null);
             onSuccess('Category added!');
             setNewCategoryName('');
         }
@@ -923,7 +882,7 @@ const CategoryManagerModal: FC<{ isOpen: boolean; onClose: () => void; categorie
     );
 };
 
-const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: FollowUp | null; projectId: string; onSuccess: (msg: string) => void; onSave: (type: 'followups', data: Partial<FollowUp>, existing: FollowUp | null) => void; }> = ({ isOpen, onClose, followUp, projectId, onSuccess, onSave }) => {
+const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: FollowUp | null; projectId: string; onSuccess: (msg: string) => void; onSave: (data: Partial<FollowUp>, existing: FollowUp | null) => void; }> = ({ isOpen, onClose, followUp, projectId, onSuccess, onSave }) => {
     const [formData, setFormData] = useState<Partial<FollowUp>>({});
     useEffect(() => {
         if (isOpen) setFormData(followUp ? { ...followUp } : { project_id: projectId, status: 'Pending', date: new Date().toISOString().slice(0, 10) });
@@ -934,7 +893,7 @@ const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: Fo
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.title || !formData.details) return;
-        onSave('followups', { ...formData, project_id: projectId }, followUp);
+        onSave({ ...formData, project_id: projectId }, followUp);
         onSuccess('Follow-up saved!');
         onClose();
     };
@@ -958,7 +917,7 @@ const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: Fo
     );
 };
 
-const TodoFormModal: FC<{ isOpen: boolean; onClose: () => void; todo: Todo | null; projectId: string; onSuccess: (msg: string) => void; onSave: (type: 'todos', data: Partial<Todo>, existing: Todo | null) => void; }> = ({ isOpen, onClose, todo, projectId, onSuccess, onSave }) => {
+const TodoFormModal: FC<{ isOpen: boolean; onClose: () => void; todo: Todo | null; projectId: string; onSuccess: (msg: string) => void; onSave: (data: Partial<Todo>, existing: Todo | null) => void; }> = ({ isOpen, onClose, todo, projectId, onSuccess, onSave }) => {
     const [formData, setFormData] = useState<Partial<Todo>>({});
     useEffect(() => {
         if (isOpen) setFormData(todo ? { ...todo } : { project_id: projectId, status: 'Open', priority: 'Medium' });
@@ -969,7 +928,7 @@ const TodoFormModal: FC<{ isOpen: boolean; onClose: () => void; todo: Todo | nul
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.task) return;
-        onSave('todos', { ...formData, project_id: projectId }, todo);
+        onSave({ ...formData, project_id: projectId }, todo);
         onSuccess('To-do saved!');
         onClose();
     };
