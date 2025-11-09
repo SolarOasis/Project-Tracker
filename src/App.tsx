@@ -183,7 +183,8 @@ const MapPinIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg x
 
 // FIX: Converted to const arrow function with explicit props type to fix TS inference issues.
 type CardProps = {
-    children: React.ReactNode;
+    // FIX: Made children optional to fix TS errors where it was incorrectly reported as missing.
+    children?: React.ReactNode;
     className?: string;
 };
 const Card = ({ children, className }: CardProps) => {
@@ -192,7 +193,8 @@ const Card = ({ children, className }: CardProps) => {
 
 // FIX: Converted to const arrow function with explicit props type to fix TS inference issues.
 type ButtonProps = {
-    children: React.ReactNode;
+    // FIX: Made children optional to fix TS errors where it was incorrectly reported as missing.
+    children?: React.ReactNode;
     onClick?: () => void;
     className?: string;
     type?: "button" | "submit" | "reset";
@@ -259,7 +261,8 @@ const Select = ({ label, name, error, children, ...props }: SelectProps) => {
 
 // FIX: Converted to const arrow function with explicit props type to fix TS inference issues.
 type ModalProps = {
-    children: React.ReactNode;
+    // FIX: Made children optional to fix TS errors where it was incorrectly reported as missing.
+    children?: React.ReactNode;
     isOpen: boolean;
     onClose: () => void;
     title: string;
