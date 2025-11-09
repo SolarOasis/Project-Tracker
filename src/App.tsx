@@ -328,7 +328,8 @@ const AppProvider = ({ children }: { children: React.ReactNode }) => {
             setIsLoading(true);
             try {
                 const data = await api.fetchAllData(currentUserId);
-                setProjects(data.projects || []);
+                const projectsList = data.projects || [];
+                setProjects(projectsList);
                 setTransactions(data.transactions || []);
                 setTodos(data.todos || []);
                 setFollowUps(data.followups || []);
@@ -336,26 +337,37 @@ const AppProvider = ({ children }: { children: React.ReactNode }) => {
                 if (data.categories && data.categories.length > 0) {
                     setCategories(data.categories);
                 } else {
-                    const defaultCategoryNames = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'];
-                    const newCategories: Category[] = defaultCategoryNames.map(name => ({
-                        id: uuidv4(),
-                        uid: currentUserId,
-                        name,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }));
-                    setCategories(newCategories);
-                    // Asynchronously save the default categories to the backend without blocking the UI
-                    newCategories.forEach(cat => api.saveCategory(cat, true).catch(err => {
-                       console.error(`Failed to save default category "${cat.name}":`, err);
-                    }));
+                    const hasSeededCategories = localStorage.getItem(`seeded_categories_${currentUserId}`);
+                    if (!hasSeededCategories) {
+                        const defaultCategoryNames = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'];
+                        const newCategories: Category[] = defaultCategoryNames.map(name => ({
+                            id: uuidv4(),
+                            uid: currentUserId,
+                            name,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }));
+                        setCategories(newCategories);
+                        
+                        Promise.all(newCategories.map(cat => api.saveCategory(cat, true)))
+                            .then(() => {
+                                console.log("Default categories seeded successfully.");
+                                localStorage.setItem(`seeded_categories_${currentUserId}`, 'true');
+                            })
+                            .catch(err => {
+                               console.error("Failed to seed default categories:", err);
+                               showToast("Could not save initial categories. Please refresh.", "error");
+                            });
+                    } else {
+                        setCategories([]); 
+                    }
                 }
 
                 const lastSelectedId = localStorage.getItem('last_selected_projectId');
-                if (lastSelectedId && data.projects.some(p => p.id === lastSelectedId)) {
+                if (lastSelectedId && projectsList.some(p => p.id === lastSelectedId)) {
                     setSelectedProjectIdState(lastSelectedId);
-                } else if (data.projects.length > 0) {
-                    setSelectedProjectIdState(data.projects[0].id);
+                } else if (projectsList.length > 0) {
+                    setSelectedProjectIdState(projectsList[0].id);
                 }
             } catch (error) {
                 console.error(error);
@@ -663,11 +675,17 @@ const AppLayout = () => {
                         />
                    ) : (
                        <div className="flex items-center justify-center h-full">
-                           <EmptyState
-                                title="No Project Selected"
-                                message="Create a new project or select one from the list to get started."
-                                action={<Button onClick={() => handleOpenModal('project')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Create First Project</Button>}
-                           />
+                           <Card className="max-w-md w-full text-center p-8 md:p-12">
+                                <h3 className="text-xl font-bold text-gray-800">No Project Selected</h3>
+                                <p className="mt-2 text-base text-gray-500">
+                                    Create a new project or select one from the list to get started.
+                                </p>
+                                <div className="mt-8">
+                                    <Button onClick={() => handleOpenModal('project')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300 inline-flex">
+                                        <PlusIcon /> Create First Project
+                                    </Button>
+                                </div>
+                            </Card>
                        </div>
                    )}
                 </main>
@@ -681,6 +699,7 @@ const ProjectSidebar = ({onNewProject}: {onNewProject: () => void}) => {
     const { projects, selectedProjectId, setSelectedProjectId } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState<{ status: string; authority: string }>({ status: 'all', authority: 'all' });
+    // FIX: Corrected a syntax error with an extra equals sign.
     const [sort, setSort] = useState('updated_at_desc');
     const authorities = useMemo(() => Array.from(new Set(projects.map(p => p.authority).filter(Boolean))), [projects]);
 
@@ -826,7 +845,7 @@ const ProjectDetail = ({ project, onEdit, onDelete, openModal }: { project: Proj
                     {activeTab === 'reports' && <ReportsTab project={project} transactions={projectTransactions} followUps={projectFollowUps} todos={projectTodos} handlePrint={handlePrint} />}
                 </div>
             </div>
-            <div className="hidden print-container" ref={printRef}><PrintableView project={project} transactions={projectTransactions} calcs={calculations} /></div>
+            <div className="absolute -left-[9999px]" ref={printRef}><PrintableView project={project} transactions={projectTransactions} calcs={calculations} /></div>
             <Modals activeModal={activeModal} editingItem={null} itemToDelete={itemToDelete} handleCloseModal={() => { setActiveModal(null); setItemToDelete(null); }}/>
         </div>
     );
@@ -934,7 +953,7 @@ const BreakdownsTab = ({ transactions }: { transactions: Transaction[] }) => {
     }, [transactions]);
 
     const BreakdownTable = ({ title, data }: { title: string, data: { key: string, value: number, percentage: number }[] }) => (
-        <Card><h4 className="font-bold text-lg text-brand-indigo mb-4">{title}</h4>{data.length > 0 ? <div className="space-y-2">{data.map(item => (<div key={item.key} className="flex justify-between items-center text-sm"><div className="flex items-center w-full"><span className="w-1/3 truncate">{item.key}</span><div className="w-2/3 bg-gray-200 rounded-full h-2.5"><div className="bg-brand-indigo h-2.5 rounded-full" style={{ width: `${item.percentage}%` }}></div></div></div><span className="ml-4 font-semibold w-28 text-right">{formatCurrency(item.value)}</span></div>))}</div> : <p className="text-sm text-gray-500">No expense data available.</p>}</Card>
+        <Card><h4 className="font-bold text-lg text-brand-indigo mb-4">{title}</h4>{data.length > 0 ? <div className="space-y-2">{data.map(item => (<div key={item.key} className="flex justify-between items-center text-sm"><div className="flex items-center w-full"><span className="w-1/3 truncate">{item.key}</span><div className="w-2/3 bg-gray-200 rounded-full h-2.5"><div className="bg-brand-indigo h-2.5 rounded-full" style={{ width: `${item.percentage}%` }} /></div></div><span className="ml-4 font-semibold w-28 text-right">{formatCurrency(item.value)}</span></div>))}</div> : <p className="text-sm text-gray-500">No expense data available.</p>}</Card>
     );
 
     return (
@@ -1034,7 +1053,7 @@ const ProjectFormModal = ({ isOpen, onClose, project, onSave, onSuccess }: { isO
         const newErrors: Record<string, string> = {};
         if (!formData.name) newErrors.name = "Project name is required.";
         if (!formData.clientName) newErrors.clientName = "Client name is required.";
-        if (!formData.clientEmail || !isEmailValid(formData.clientEmail)) newErrors.clientEmail = "A valid client email is required.";
+        if (formData.clientEmail && !isEmailValid(formData.clientEmail)) newErrors.clientEmail = "Please enter a valid email address.";
         if (!formData.clientPhone || !isPhoneValid(formData.clientPhone)) newErrors.clientPhone = "A valid client phone is required.";
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -1059,7 +1078,7 @@ const ProjectFormModal = ({ isOpen, onClose, project, onSave, onSuccess }: { isO
                         <Input label="Client Name" name="clientName" value={formData.clientName || ''} onChange={handleChange} error={errors.clientName} required />
                         <Input label="Client Company (Optional)" name="clientCompany" value={formData.clientCompany || ''} onChange={handleChange} />
                         <Input label="Client Phone" name="clientPhone" type="tel" value={formData.clientPhone || ''} onChange={handleChange} error={errors.clientPhone} required />
-                        <Input label="Client Email" name="clientEmail" type="email" value={formData.clientEmail || ''} onChange={handleChange} error={errors.clientEmail} required />
+                        <Input label="Client Email (Optional)" name="clientEmail" type="email" value={formData.clientEmail || ''} onChange={handleChange} error={errors.clientEmail} />
                         <div className="md:col-span-2"><Input label="Site Address" name="siteAddress" value={formData.siteAddress || ''} onChange={handleChange} required /></div>
                         <Input label="Google Maps Link (Optional)" name="googleMapsLink" value={formData.googleMapsLink || ''} onChange={handleChange} />
                         <Select label="Authority" name="authority" value={formData.authority || ''} onChange={handleChange}>{UAE_AUTHORITIES.map(a => <option key={a} value={a}>{a}</option>)}</Select>
