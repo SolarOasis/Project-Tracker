@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, FC, useRef, createContext, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import html2pdf from 'html2pdf.js';
@@ -181,20 +181,46 @@ const PencilIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 
 const ClipboardCopyIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h.01M9 16h.01" /></svg>;
 const MapPinIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.1.4-.27.6-.5s.4-.51.5-.82c.1-.31.1-.65.1-1.01V5.75a1 1 0 00-1-1H4a1 1 0 00-1 1v7.25c0 .36.002.7.1 1.01.1.31.2.52.5.82s.4.4.6.5c.18.13.395.24.6.34.09.03.18.06.28.09l.018.008.006.003zM10 16.5a1 1 0 00-1 1v.083c0 .03.002.05.005.071.002.015.007.03.012.044s.01.028.017.04.015.022.023.032c.084.103.22.22.4.333.18.114.33.2.4.242.07.042.1.06.1.06s.03-.018.1-.06a2.12 2.12 0 00.4-.242c.18-.113.315-.23.4-.333.008-.01.015-.02.023-.032a.5.5 0 00.017-.04.6.6 0 00.012-.044c.003-.02.005-.04.005-.07V17.5a1 1 0 00-1-1h-2z" clipRule="evenodd" /></svg>;
 
-const Card: FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => <div className={`bg-white rounded-xl shadow-md p-6 ${className}`}>{children}</div>;
-const Button: FC<{ children: React.ReactNode; onClick?: () => void; className?: string; type?: "button" | "submit" | "reset"; disabled?: boolean; }> = ({ children, onClick, className, type = "button", disabled }) => <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>{children}</button>;
+// FIX: Changed Card from const arrow function to a function declaration to potentially resolve TS inference issues.
+function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+    return <div className={`bg-white rounded-xl shadow-md p-6 ${className}`}>{children}</div>;
+}
+// FIX: Changed Button from const arrow function to a function declaration to potentially resolve TS inference issues.
+function Button({ children, onClick, className, type = "button", disabled }: { children: React.ReactNode; onClick?: () => void; className?: string; type?: "button" | "submit" | "reset"; disabled?: boolean; }) {
+    return <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>{children}</button>;
+}
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<input id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
 const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<textarea id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-const Select: FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string, error?: string, children: React.ReactNode }> = ({ label, name, error, children, ...props }) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<select id={name} name={name} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props}>{children}</select>{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-const Modal: FC<{ children: React.ReactNode; isOpen: boolean; onClose: () => void; title: string; }> = ({ isOpen, onClose, title, children }) => { if (!isOpen) return null; return (<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}><div className="p-6 border-b sticky top-0 bg-white z-10"><div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-brand-indigo">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div></div><div className="p-6">{children}</div></div></div>); };
-const Toast: FC<{ message: string; show: boolean; type?: 'success' | 'error' }> = ({ message, show, type = 'success' }) => <div className={`fixed bottom-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${show ? 'translate-x-0' : 'translate-x-full'} ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{message}</div>;
-const EmptyState: FC<{ title: string; message: string; action?: React.ReactNode }> = ({ title, message, action }) => <div className="text-center py-12 px-6 bg-gray-50 rounded-lg"><h3 className="text-lg font-medium text-gray-900">{title}</h3><p className="mt-1 text-sm text-gray-500">{message}</p>{action && <div className="mt-6">{action}</div>}</div>;
+const Select = ({ label, name, error, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string, error?: string, children: React.ReactNode }) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<select id={name} name={name} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props}>{children}</select>{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
+// FIX: Changed Modal from const arrow function to a function declaration to potentially resolve TS inference issues.
+function Modal({ isOpen, onClose, title, children }: { children: React.ReactNode; isOpen: boolean; onClose: () => void; title: string; }) {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b sticky top-0 bg-white z-10">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-2xl font-bold text-brand-indigo">{title}</h3>
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div className="p-6">{children}</div>
+            </div>
+        </div>
+    );
+}
+const Toast = ({ message, show, type = 'success' }: { message: string; show: boolean; type?: 'success' | 'error' }) => <div className={`fixed bottom-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${show ? 'translate-x-0' : 'translate-x-full'} ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{message}</div>;
+const EmptyState = ({ title, message, action }: { title: string; message: string; action?: React.ReactNode }) => <div className="text-center py-12 px-6 bg-gray-50 rounded-lg"><h3 className="text-lg font-medium text-gray-900">{title}</h3><p className="mt-1 text-sm text-gray-500">{message}</p>{action && <div className="mt-6">{action}</div>}</div>;
 
 // ===================================================================================
 // APP PROVIDER & MAIN COMPONENT
 // ===================================================================================
 
-const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
+const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [userId, setUserId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -235,7 +261,8 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
                 if (data.categories && data.categories.length > 0) {
                     setCategories(data.categories);
                 } else {
-                    const newCategories: Category[] = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'].map(name => ({
+                    const defaultCategoryNames = ['Panels', 'Inverter', 'Mounting', 'Cables', 'Labour', 'Logistics', 'Permits', 'Misc'];
+                    const newCategories: Category[] = defaultCategoryNames.map(name => ({
                         id: uuidv4(),
                         uid: currentUserId,
                         name,
@@ -243,9 +270,10 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
                         updated_at: new Date().toISOString()
                     }));
                     setCategories(newCategories);
-                    Promise.all(newCategories.map(cat => api.saveCategory(cat, true))).catch(err => {
-                       console.error("Failed to save default categories:", err);
-                    });
+                    // Asynchronously save the default categories to the backend without blocking the UI
+                    newCategories.forEach(cat => api.saveCategory(cat, true).catch(err => {
+                       console.error(`Failed to save default category "${cat.name}":`, err);
+                    }));
                 }
 
                 const lastSelectedId = localStorage.getItem('last_selected_projectId');
@@ -256,7 +284,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
                 }
             } catch (error) {
                 console.error(error);
-                showToast("Failed to load data from server.", "error");
+                showToast("Failed to load data from the server.", "error");
             } finally {
                 setIsLoading(false);
             }
@@ -267,29 +295,25 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     // --- Type-Safe, Dedicated State Management Functions ---
 
     const saveProject = async (data: Partial<Project>, existing: Project | null) => {
-        if (!userId) return showToast("User ID not found.", "error");
+        if (!userId) {
+            showToast("User ID not found. Cannot save.", "error");
+            return;
+        }
         const isNew = !existing;
         const now = new Date().toISOString();
-        if (isNew) {
-            const newItem: Project = { ...DEFAULT_PROJECT, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
-            setProjects(prev => [...prev, newItem]); // Optimistic update
-            try {
-                const savedItem = await api.saveProject(newItem, true);
-                setProjects(prev => prev.map(p => p.id === newItem.id ? savedItem : p)); // Replace with server response
-            } catch (error) {
-                showToast("Error saving project.", "error");
-                setProjects(prev => prev.filter(p => p.id !== newItem.id)); // Revert
-            }
-        } else {
-            const updatedItem = { ...existing!, ...data, updated_at: now };
-            const originalProjects = [...projects];
-            setProjects(prev => prev.map(p => p.id === updatedItem.id ? updatedItem : p)); // Optimistic update
-            try {
-                await api.saveProject(updatedItem, false);
-            } catch (error) {
-                showToast("Error updating project. Reverting.", "error");
-                setProjects(originalProjects); // Revert
-            }
+        const optimisticItem: Project = isNew 
+            ? { ...DEFAULT_PROJECT, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now }
+            : { ...existing!, ...data, updated_at: now };
+
+        const originalState = [...projects];
+        setProjects(prev => isNew ? [...prev, optimisticItem] : prev.map(p => p.id === optimisticItem.id ? optimisticItem : p));
+
+        try {
+            const savedItem = await api.saveProject(optimisticItem, isNew);
+            setProjects(prev => prev.map(p => p.id === optimisticItem.id ? savedItem : p)); // Update with server response
+        } catch (error) {
+            showToast(`Error ${isNew ? 'creating' : 'updating'} project. Reverting.`, "error");
+            setProjects(originalState); // Revert on failure
         }
     };
     
@@ -321,33 +345,30 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     const saveTransaction = async (data: Partial<Transaction>, existing: Transaction | null) => {
-        if (!userId) return showToast("User ID not found.", "error");
+        if (!userId) {
+            showToast("User ID not found.", "error");
+            return;
+        }
         const isNew = !existing;
         const now = new Date().toISOString();
-        if (isNew) {
-            if (!data.project_id) {
-                showToast("Cannot create transaction without a project.", "error");
-                return;
-            }
-            const newItem: Transaction = { ...DEFAULT_TRANSACTION, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
-            setTransactions(prev => [...prev, newItem]);
-            try {
-                const savedItem = await api.saveTransaction(newItem, true);
-                setTransactions(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
-            } catch (error) {
-                showToast("Error saving transaction.", "error");
-                setTransactions(prev => prev.filter(i => i.id !== newItem.id));
-            }
-        } else {
-            const updatedItem = { ...existing!, ...data, updated_at: now };
-            const originalState = [...transactions];
-            setTransactions(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-            try {
-                await api.saveTransaction(updatedItem, false);
-            } catch (error) {
-                showToast("Error updating transaction. Reverting.", "error");
-                setTransactions(originalState);
-            }
+        if (isNew && !data.project_id) {
+            showToast("Cannot create transaction without a project.", "error");
+            return;
+        }
+        
+        const optimisticItem: Transaction = isNew
+            ? { ...DEFAULT_TRANSACTION, ...data, project_id: data.project_id!, id: uuidv4(), uid: userId, created_at: now, updated_at: now }
+            : { ...existing!, ...data, updated_at: now };
+        
+        const originalState = [...transactions];
+        setTransactions(prev => isNew ? [...prev, optimisticItem] : prev.map(i => i.id === optimisticItem.id ? optimisticItem : i));
+        
+        try {
+            const savedItem = await api.saveTransaction(optimisticItem, isNew);
+            setTransactions(prev => prev.map(i => i.id === optimisticItem.id ? savedItem : i));
+        } catch (error) {
+            showToast("Error saving transaction. Reverting.", "error");
+            setTransactions(originalState);
         }
     };
 
@@ -363,33 +384,30 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     const saveTodo = async (data: Partial<Todo>, existing: Todo | null) => {
-        if (!userId) return showToast("User ID not found.", "error");
+        if (!userId) {
+            showToast("User ID not found.", "error");
+            return;
+        }
         const isNew = !existing;
         const now = new Date().toISOString();
-        if (isNew) {
-            if (!data.project_id) {
-                showToast("Cannot create to-do without a project.", "error");
-                return;
-            }
-            const newItem: Todo = { ...DEFAULT_TODO, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
-            setTodos(prev => [...prev, newItem]);
-            try {
-                const savedItem = await api.saveTodo(newItem, true);
-                setTodos(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
-            } catch (error) {
-                showToast("Error saving to-do.", "error");
-                setTodos(prev => prev.filter(i => i.id !== newItem.id));
-            }
-        } else {
-            const updatedItem = { ...existing!, ...data, updated_at: now };
-            const originalState = [...todos];
-            setTodos(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-            try {
-                await api.saveTodo(updatedItem, false);
-            } catch (error) {
-                showToast("Error updating to-do. Reverting.", "error");
-                setTodos(originalState);
-            }
+        if (isNew && !data.project_id) {
+            showToast("Cannot create to-do without a project.", "error");
+            return;
+        }
+
+        const optimisticItem: Todo = isNew
+            ? { ...DEFAULT_TODO, ...data, project_id: data.project_id!, id: uuidv4(), uid: userId, created_at: now, updated_at: now }
+            : { ...existing!, ...data, updated_at: now };
+
+        const originalState = [...todos];
+        setTodos(prev => isNew ? [...prev, optimisticItem] : prev.map(i => i.id === optimisticItem.id ? optimisticItem : i));
+
+        try {
+            const savedItem = await api.saveTodo(optimisticItem, isNew);
+            setTodos(prev => prev.map(i => i.id === optimisticItem.id ? savedItem : i));
+        } catch (error) {
+            showToast("Error saving to-do. Reverting.", "error");
+            setTodos(originalState);
         }
     };
 
@@ -405,33 +423,30 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     };
     
     const saveFollowUp = async (data: Partial<FollowUp>, existing: FollowUp | null) => {
-        if (!userId) return showToast("User ID not found.", "error");
+        if (!userId) {
+            showToast("User ID not found.", "error");
+            return;
+        }
         const isNew = !existing;
         const now = new Date().toISOString();
-        if (isNew) {
-            if (!data.project_id) {
-                showToast("Cannot create follow-up without a project.", "error");
-                return;
-            }
-            const newItem: FollowUp = { ...DEFAULT_FOLLOWUP, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
-            setFollowUps(prev => [...prev, newItem]);
-            try {
-                const savedItem = await api.saveFollowUp(newItem, true);
-                setFollowUps(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
-            } catch (error) {
-                showToast("Error saving follow-up.", "error");
-                setFollowUps(prev => prev.filter(i => i.id !== newItem.id));
-            }
-        } else {
-            const updatedItem = { ...existing!, ...data, updated_at: now };
-            const originalState = [...followUps];
-            setFollowUps(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-            try {
-                await api.saveFollowUp(updatedItem, false);
-            } catch (error) {
-                showToast("Error updating follow-up. Reverting.", "error");
-                setFollowUps(originalState);
-            }
+        if (isNew && !data.project_id) {
+            showToast("Cannot create follow-up without a project.", "error");
+            return;
+        }
+
+        const optimisticItem: FollowUp = isNew
+            ? { ...DEFAULT_FOLLOWUP, ...data, project_id: data.project_id!, id: uuidv4(), uid: userId, created_at: now, updated_at: now }
+            : { ...existing!, ...data, updated_at: now };
+
+        const originalState = [...followUps];
+        setFollowUps(prev => isNew ? [...prev, optimisticItem] : prev.map(i => i.id === optimisticItem.id ? optimisticItem : i));
+
+        try {
+            const savedItem = await api.saveFollowUp(optimisticItem, isNew);
+            setFollowUps(prev => prev.map(i => i.id === optimisticItem.id ? savedItem : i));
+        } catch (error) {
+            showToast("Error saving follow-up. Reverting.", "error");
+            setFollowUps(originalState);
         }
     };
 
@@ -447,29 +462,26 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     const saveCategory = async (data: Partial<Category>, existing: Category | null) => {
-        if (!userId) return showToast("User ID not found.", "error");
+        if (!userId) {
+            showToast("User ID not found.", "error");
+            return;
+        }
         const isNew = !existing;
         const now = new Date().toISOString();
-        if (isNew) {
-            const newItem: Category = { ...DEFAULT_CATEGORY, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
-            setCategories(prev => [...prev, newItem]);
-            try {
-                const savedItem = await api.saveCategory(newItem, true);
-                setCategories(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
-            } catch (error) {
-                showToast("Error saving category.", "error");
-                setCategories(prev => prev.filter(i => i.id !== newItem.id));
-            }
-        } else {
-            const updatedItem = { ...existing!, ...data, updated_at: now };
-            const originalState = [...categories];
-            setCategories(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-            try {
-                await api.saveCategory(updatedItem, false);
-            } catch (error) {
-                showToast("Error updating category. Reverting.", "error");
-                setCategories(originalState);
-            }
+        
+        const optimisticItem: Category = isNew
+            ? { ...DEFAULT_CATEGORY, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now }
+            : { ...existing!, ...data, updated_at: now };
+
+        const originalState = [...categories];
+        setCategories(prev => isNew ? [...prev, optimisticItem] : prev.map(i => i.id === optimisticItem.id ? optimisticItem : i));
+        
+        try {
+            const savedItem = await api.saveCategory(optimisticItem, isNew);
+            setCategories(prev => prev.map(i => i.id === optimisticItem.id ? savedItem : i));
+        } catch (error) {
+            showToast("Error saving category. Reverting.", "error");
+            setCategories(originalState);
         }
     };
 
@@ -484,37 +496,37 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         }
     };
     
+    const batchUpdate = async (projectId: string, milestones: Milestone[], paymentMilestones: PaymentMilestone[]) => {
+        const originalProject = projects.find(p => p.id === projectId);
+        if (!originalProject) return;
+
+        const updatedProject = { ...originalProject, milestones, paymentMilestones, updated_at: new Date().toISOString() };
+        setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
+
+        try {
+            const serverUpdatedProject = await api.batchUpdateMilestones(projectId, milestones, paymentMilestones);
+            setProjects(prev => prev.map(p => p.id === projectId ? serverUpdatedProject : p));
+        } catch(error) {
+            showToast("Failed to update milestones. Reverting.", "error");
+            setProjects(prev => prev.map(p => p.id === projectId ? originalProject : p));
+        }
+   }
+
     const updateProjectMilestones = async (projectId: string, milestones: Milestone[]) => {
         const project = projects.find(p => p.id === projectId);
         if (!project) return;
-        
         await batchUpdate(projectId, milestones, project.paymentMilestones);
     };
 
     const updatePaymentMilestones = async (projectId: string, paymentMilestones: PaymentMilestone[]) => {
         const project = projects.find(p => p.id === projectId);
         if (!project) return;
-        
         await batchUpdate(projectId, project.milestones, paymentMilestones);
     };
-
-    const batchUpdate = async (projectId: string, milestones: Milestone[], paymentMilestones: PaymentMilestone[]) => {
-         const originalProject = projects.find(p => p.id === projectId);
-         if (!originalProject) return;
-
-         const updatedProject = { ...originalProject, milestones, paymentMilestones, updated_at: new Date().toISOString() };
-         setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
-
-         try {
-             const serverUpdatedProject = await api.batchUpdateMilestones(projectId, milestones, paymentMilestones);
-             setProjects(prev => prev.map(p => p.id === projectId ? serverUpdatedProject : p));
-         } catch(error) {
-             showToast("Failed to update milestones", "error");
-             setProjects(prev => prev.map(p => p.id === projectId ? originalProject : p));
-         }
-    }
     
-    const loadDemoData = async () => { /* Demo data can be complex with backend, disabling for now */ showToast("Demo data not available with backend.", "error"); };
+    const loadDemoData = async () => {
+        showToast("Demo data feature is not available with this backend.", "error");
+    };
 
     const value = { userId, projects, transactions, todos, followUps, categories, selectedProjectId, setSelectedProjectId, loadDemoData, showToast, updateProjectMilestones, updatePaymentMilestones, saveProject, saveTransaction, saveTodo, saveFollowUp, saveCategory, deleteProject, deleteTransaction, deleteTodo, deleteFollowUp, deleteCategory };
 
@@ -530,13 +542,13 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     );
 };
 
-const App: FC = () => (
+const App = () => (
     <AppProvider>
         <AppLayout />
     </AppProvider>
 );
 
-const AppLayout: FC = () => {
+const AppLayout = () => {
     const { deleteProject } = useAppContext();
     const [activeModal, setActiveModal] = useState<ModalType>(null);
     const [editingItem, setEditingItem] = useState<EditableItem | null>(null);
@@ -553,7 +565,8 @@ const AppLayout: FC = () => {
         setItemToDelete(null);
     };
 
-    const selectedProject = useAppContext().projects.find(p => p.id === useAppContext().selectedProjectId);
+    const { projects, selectedProjectId } = useAppContext();
+    const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId), [projects, selectedProjectId]);
 
     return (
         <div className="h-screen w-screen bg-gray-100 flex flex-col font-sans">
@@ -589,7 +602,7 @@ const AppLayout: FC = () => {
     );
 };
 
-const ProjectSidebar: FC<{onNewProject: () => void}> = ({onNewProject}) => {
+const ProjectSidebar = ({onNewProject}: {onNewProject: () => void}) => {
     const { projects, selectedProjectId, setSelectedProjectId } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState<{ status: string; authority: string }>({ status: 'all', authority: 'all' });
@@ -605,14 +618,14 @@ const ProjectSidebar: FC<{onNewProject: () => void}> = ({onNewProject}) => {
                 switch (sort) {
                     case 'name_asc': return a.name.localeCompare(b.name);
                     case 'created_at_desc': {
-                        const dateA = parseISO(a.created_at ?? '');
-                        const dateB = parseISO(b.created_at ?? '');
-                        return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
+                        const dateA = parseISO(a.created_at ?? '0');
+                        const dateB = parseISO(b.created_at ?? '0');
+                        return dateB.getTime() - dateA.getTime();
                     }
                     case 'updated_at_desc': {
-                        const dateA = parseISO(a.updated_at ?? '');
-                        const dateB = parseISO(b.updated_at ?? '');
-                        return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
+                        const dateA = parseISO(a.updated_at ?? '0');
+                        const dateB = parseISO(b.updated_at ?? '0');
+                        return dateB.getTime() - dateA.getTime();
                     }
                     default: return 0;
                 }
@@ -641,9 +654,10 @@ const ProjectSidebar: FC<{onNewProject: () => void}> = ({onNewProject}) => {
     )
 };
 
-const Modals: FC<{ activeModal: ModalType; editingItem: EditableItem | null; itemToDelete: { onConfirm: () => Promise<void>; name: string } | null; handleCloseModal: () => void; }> = ({ activeModal, editingItem, itemToDelete, handleCloseModal }) => {
+const Modals = ({ activeModal, editingItem, itemToDelete, handleCloseModal }: { activeModal: ModalType; editingItem: EditableItem | null; itemToDelete: { onConfirm: () => Promise<void>; name: string } | null; handleCloseModal: () => void; }) => {
     const { saveProject, saveTransaction, saveFollowUp, saveTodo, saveCategory, deleteCategory, showToast, categories, selectedProjectId } = useAppContext();
-    const project = useAppContext().projects.find(p => p.id === selectedProjectId);
+    const { projects } = useAppContext();
+    const project = useMemo(() => projects.find(p => p.id === selectedProjectId), [projects, selectedProjectId]);
 
     const handleDelete = async () => {
         if (!itemToDelete) return;
@@ -671,7 +685,7 @@ const Modals: FC<{ activeModal: ModalType; editingItem: EditableItem | null; ite
     )
 };
 
-const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => void; openModal: (type: ModalType, item?: EditableItem | null) => void; }> = ({ project, onEdit, onDelete, openModal }) => {
+const ProjectDetail = ({ project, onEdit, onDelete, openModal }: { project: Project; onEdit: () => void; onDelete: () => void; openModal: (type: ModalType, item?: EditableItem | null) => void; }) => {
     const { transactions, todos, followUps, deleteTransaction, deleteFollowUp, deleteTodo, saveTodo } = useAppContext();
     const [activeModal, setActiveModal] = useState<ModalType>(null);
     const [itemToDelete, setItemToDelete] = useState<{ onConfirm: () => Promise<void>; name: string } | null>(null);
@@ -700,9 +714,9 @@ const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => 
         html2pdf().from(element).set({
             margin: 0.5,
             filename: `project_${project.name.replace(/\s/g, '_')}.pdf`,
-            image: { type: 'jpeg' as 'jpeg', quality: 0.98 },
+            image: { type: 'jpeg' as const, quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as 'portrait' }
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
         }).save();
     };
 
@@ -743,7 +757,7 @@ const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => 
     );
 };
 
-const ClientInfoCard: FC<{ project: Project }> = ({ project }) => {
+const ClientInfoCard = ({ project }: { project: Project }) => {
     const { showToast } = useAppContext();
     const copyToClipboard = (text: string, label: string) => { navigator.clipboard.writeText(text).then(() => showToast(`${label} copied!`)); };
     return (
@@ -755,15 +769,15 @@ const ClientInfoCard: FC<{ project: Project }> = ({ project }) => {
     );
 };
 
-const EstimationVsActualsCard: FC<{ calcs: any }> = ({ calcs }) => (
+const EstimationVsActualsCard = ({ calcs }: { calcs: any }) => (
     <Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Estimation vs. Actuals</h4><div className="space-y-2 text-sm"><div className="grid grid-cols-3 gap-2 font-semibold"><span></span><span className="text-right">Estimated</span><span className="text-right">Actual</span></div><div className="grid grid-cols-3 gap-2 border-t pt-2"><span className="text-gray-600">Revenue</span><span className="text-right">{formatCurrency(calcs.estimatedRevenue)}</span><span className="text-right text-green-600 font-semibold">{formatCurrency(calcs.totalRevenue)}</span></div><div className="grid grid-cols-3 gap-2"><span className="text-gray-600">Expenses</span><span className="text-right">{formatCurrency(calcs.estimatedCapEx)}</span><span className="text-right text-red-600 font-semibold">{formatCurrency(calcs.totalExpenses)}</span></div><div className="grid grid-cols-3 gap-2 border-t pt-2 font-bold"><span className="text-gray-800">Gross Profit</span><span className="text-right">{formatCurrency(calcs.estimatedGrossProfit)}</span><span className="text-right text-blue-600">{formatCurrency(calcs.netProfit)}</span></div><div className="grid grid-cols-3 gap-2"><span className="text-gray-800">Margin</span><span className="text-right">{calcs.estimatedMargin.toFixed(2)}%</span><span className={`text-right ${calcs.profitMargin >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{calcs.profitMargin.toFixed(2)}%</span></div></div></Card>
 );
 
-const FinancialsCard: FC<{ calcs: any }> = ({ calcs }) => (
+const FinancialsCard = ({ calcs }: { calcs: any }) => (
     <Card className="flex flex-col justify-between"><h4 className="font-bold text-lg text-brand-indigo mb-4">Actual Financials</h4><div className="space-y-3"><div><div className="text-sm text-gray-500">Total Revenue</div><div className="text-2xl font-bold text-green-600">{formatCurrency(calcs.totalRevenue)}</div></div><div><div className="text-sm text-gray-500">Total Expenses</div><div className="text-2xl font-bold text-red-600">{formatCurrency(calcs.totalExpenses)}</div></div><div className="border-t pt-3"><div className="text-sm text-gray-500">Net Profit / Loss</div><div className={`text-3xl font-extrabold ${calcs.netProfit >= 0 ? 'text-brand-indigo' : 'text-red-700'}`}>{formatCurrency(calcs.netProfit)}</div></div></div></Card>
 );
 
-const ProjectMilestonesTracker: FC<{ project: Project }> = ({ project }) => {
+const ProjectMilestonesTracker = ({ project }: { project: Project }) => {
     const { updateProjectMilestones } = useAppContext();
     const handleToggle = (index: number) => {
         const newMilestones = project.milestones.map((m, i) => i === index ? { ...m, completed: !m.completed, completedDate: !m.completed ? new Date().toISOString() : undefined } : m);
@@ -772,13 +786,15 @@ const ProjectMilestonesTracker: FC<{ project: Project }> = ({ project }) => {
     return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Project Milestones</h4><div className="space-y-3">{project.milestones.map((milestone, index) => (<div key={index} className="flex items-center justify-between"><div className="flex items-center"><input type="checkbox" checked={milestone.completed} onChange={() => handleToggle(index)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><label className={`ml-3 text-sm ${milestone.completed ? 'text-gray-500 line-through' : 'text-gray-700'}`}>{milestone.name}</label></div>{milestone.completed && milestone.completedDate && <span className="text-xs text-gray-400">{formatDate(milestone.completedDate)}</span>}</div>))}</div></Card>);
 };
 
-const PaymentMilestonesTracker: FC<{ project: Project }> = ({ project }) => {
+const PaymentMilestonesTracker = ({ project }: { project: Project }) => {
     const { updatePaymentMilestones } = useAppContext();
     const handleUpdate = (index: number, field: keyof PaymentMilestone, value: any) => {
         const newMilestones = project.paymentMilestones.map((m, i) => {
             if (i === index) {
                 const updated = { ...m, [field]: value };
-                if (field === 'status') updated.receivedDate = value === 'Received' ? new Date().toISOString() : undefined;
+                if (field === 'status' && value === 'Received') {
+                    updated.receivedDate = new Date().toISOString();
+                }
                 return updated;
             }
             return m;
@@ -790,7 +806,7 @@ const PaymentMilestonesTracker: FC<{ project: Project }> = ({ project }) => {
     return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Payment Milestones</h4><div className="space-y-3">{project.paymentMilestones.map((m, i) => (<div key={i} className="grid grid-cols-3 gap-2 items-center text-sm"><span className="font-medium text-gray-700">{m.label}</span><Input type="number" value={m.amount} onChange={(e) => handleUpdate(i, 'amount', parseFloat(e.target.value) || 0)} className="text-right" /><Select value={m.status} onChange={(e) => handleUpdate(i, 'status', e.target.value)}><option>Pending</option><option>Received</option></Select></div>))}</div><div className="border-t mt-4 pt-3 text-sm"><div className="flex justify-between"><span>Total Amount:</span> <span className="font-semibold">{formatCurrency(totalAmount)}</span></div><div className="flex justify-between"><span>Total Received:</span> <span className="font-semibold text-green-600">{formatCurrency(totalReceived)}</span></div></div></Card>);
 };
 
-const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }> = ({ transactions, openModal, onDelete }) => {
+const TransactionsTab = ({ transactions, openModal, onDelete }: { transactions: Transaction[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }) => {
     const { categories } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({ category: 'all', type: 'all' });
@@ -802,16 +818,8 @@ const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: Modal
                 switch (sort) {
                     case 'amount_desc': return safeNumber(b.amount) - safeNumber(a.amount);
                     case 'amount_asc': return safeNumber(a.amount) - safeNumber(b.amount);
-                    case 'date_asc': {
-                        const dateA = parseISO(a.date ?? '');
-                        const dateB = parseISO(b.date ?? '');
-                        return (isValid(dateA) ? dateA.getTime() : 0) - (isValid(dateB) ? dateB.getTime() : 0);
-                    }
-                    default: { // date_desc
-                        const dateA = parseISO(a.date ?? '');
-                        const dateB = parseISO(b.date ?? '');
-                        return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
-                    }
+                    case 'date_asc': return (new Date(a.date)).getTime() - (new Date(b.date)).getTime();
+                    default: return (new Date(b.date)).getTime() - (new Date(a.date)).getTime(); // date_desc
                 }
             });
     }, [transactions, searchTerm, filters, sort]);
@@ -824,7 +832,7 @@ const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: Modal
     </tr>))}</tbody></table></div> : <EmptyState title="No Transactions Found" message="Add an income or expense transaction to get started." />}</Card>);
 };
 
-const BreakdownsTab: FC<{ transactions: Transaction[] }> = ({ transactions }) => {
+const BreakdownsTab = ({ transactions }: { transactions: Transaction[] }) => {
     const expenseBreakdown = useMemo(() => {
         const expenses = transactions.filter(t => t.type === 'Expense');
         const totalExpenses = expenses.reduce((sum, t) => sum + safeNumber(t.amount), 0);
@@ -850,7 +858,7 @@ const BreakdownsTab: FC<{ transactions: Transaction[] }> = ({ transactions }) =>
         };
     }, [transactions]);
 
-    const BreakdownTable: FC<{ title: string, data: { key: string, value: number, percentage: number }[] }> = ({ title, data }) => (
+    const BreakdownTable = ({ title, data }: { title: string, data: { key: string, value: number, percentage: number }[] }) => (
         <Card><h4 className="font-bold text-lg text-brand-indigo mb-4">{title}</h4>{data.length > 0 ? <div className="space-y-2">{data.map(item => (<div key={item.key} className="flex justify-between items-center text-sm"><div className="flex items-center w-full"><span className="w-1/3 truncate">{item.key}</span><div className="w-2/3 bg-gray-200 rounded-full h-2.5"><div className="bg-brand-indigo h-2.5 rounded-full" style={{ width: `${item.percentage}%` }}></div></div></div><span className="ml-4 font-semibold w-28 text-right">{formatCurrency(item.value)}</span></div>))}</div> : <p className="text-sm text-gray-500">No expense data available.</p>}</Card>
     );
 
@@ -862,39 +870,35 @@ const BreakdownsTab: FC<{ transactions: Transaction[] }> = ({ transactions }) =>
     );
 };
 
-const FollowUpsTab: FC<{ followUps: FollowUp[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }> = ({ followUps, openModal, onDelete }) => {
+const FollowUpsTab = ({ followUps, openModal, onDelete }: { followUps: FollowUp[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }) => {
     const sortedFollowUps = useMemo(() => {
-        return [...followUps].sort((a, b) => {
-            const dateA = parseISO(a.date ?? '');
-            const dateB = parseISO(b.date ?? '');
-            return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
-        });
+        return [...followUps].sort((a, b) => (new Date(b.date)).getTime() - (new Date(a.date)).getTime());
     }, [followUps]);
     const overdue = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) > 0);
     const upcoming = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) <= 0);
     const completed = sortedFollowUps.filter(f => f.status === 'Completed');
 
-    const FollowUpList: FC<{ title: string, items: FollowUp[], color: string }> = ({ title, items, color }) => (
+    const FollowUpList = ({ title, items, color }: { title: string, items: FollowUp[], color: string }) => (
         <div><h4 className={`font-bold text-lg mb-4 text-${color}-600`}>{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-3">{items.map(f => (<div key={f.id} className="p-4 rounded-lg bg-white shadow-sm border-l-4" style={{borderColor: color}}><div className="flex justify-between items-start"><div><p className="font-semibold">{f.title}</p><p className="text-sm text-gray-600">{f.details}</p><p className="text-xs text-gray-400 mt-2">Logged on {formatDate(f.date)} by {f.owner}</p>{f.nextFollowUpDate && <p className="text-xs text-gray-500 font-medium">Next follow-up: {formatDate(f.nextFollowUpDate)}</p>}</div><div className="flex gap-2"><button onClick={() => openModal('followup', f)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(f.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div></div>))}</div> : <p className="text-sm text-gray-500">None.</p>}</div>
     );
 
     return <Card><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-brand-indigo">Client Follow-Ups</h3><Button onClick={() => openModal('followup')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add Follow-Up</Button></div><div className="space-y-8"><FollowUpList title="Overdue" items={overdue} color="red" /><FollowUpList title="Upcoming" items={upcoming} color="blue" /><FollowUpList title="Completed" items={completed} color="gray" /></div></Card>;
 };
 
-const TodosTab: FC<{ todos: Todo[], openModal: (type: ModalType, item?: any) => void; onToggle: (todo: Todo) => void; onDelete: (id: string) => void; }> = ({ todos, openModal, onToggle, onDelete }) => {
+const TodosTab = ({ todos, openModal, onToggle, onDelete }: { todos: Todo[], openModal: (type: ModalType, item?: any) => void; onToggle: (todo: Todo) => void; onDelete: (id: string) => void; }) => {
     const openTodos = useMemo(() => todos.filter(t => t.status === 'Open').sort((a,b) => TODO_PRIORITIES.indexOf(b.priority) - TODO_PRIORITIES.indexOf(a.priority)), [todos]);
     const doneTodos = useMemo(() => todos.filter(t => t.status === 'Done'), [todos]);
     
     const priorityColor = (priority: 'Low' | 'Medium' | 'High') => ({ Low: 'bg-green-100 text-green-800', Medium: 'bg-yellow-100 text-yellow-800', High: 'bg-red-100 text-red-800' }[priority]);
 
-    const TodoList: FC<{ title: string, items: Todo[] }> = ({ title, items }) => (
+    const TodoList = ({ title, items }: { title: string, items: Todo[] }) => (
         <div><h4 className="font-bold text-lg mb-4">{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-2">{items.map(t => (<div key={t.id} className={`flex items-center p-3 rounded-lg ${t.status === 'Done' ? 'bg-gray-100' : 'bg-white shadow-sm'}`}><input type="checkbox" checked={t.status === 'Done'} onChange={() => onToggle(t)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><div className="ml-4 flex-1"><p className={`${t.status === 'Done' ? 'line-through text-gray-500' : ''}`}>{t.task}</p><div className="text-xs text-gray-500 flex items-center gap-4 mt-1"><span>Due: {formatDate(t.dueDate)}</span>{t.assignee && <span>To: {t.assignee}</span>}<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(t.priority)}`}>{t.priority}</span></div></div><div className="flex gap-2"><button onClick={() => openModal('todo', t)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(t.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div>))}</div> : <p className="text-sm text-gray-500">All caught up!</p>}</div>
     );
     
     return <Card><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-brand-indigo">To-Do List</h3><Button onClick={() => openModal('todo')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add To-Do</Button></div><div className="space-y-8"><TodoList title="Open" items={openTodos} /><TodoList title="Done" items={doneTodos} /></div></Card>;
 };
 
-const ReportsTab: FC<{ project: Project; transactions: Transaction[]; followUps: FollowUp[]; todos: Todo[]; handlePrint: () => void }> = ({ project, transactions, followUps, todos, handlePrint }) => {
+const ReportsTab = ({ project, transactions, followUps, todos, handlePrint }: { project: Project; transactions: Transaction[]; followUps: FollowUp[]; todos: Todo[]; handlePrint: () => void }) => {
     const handleExport = (type: 'transactions' | 'followups' | 'todos') => {
         const timestamp = new Date().toISOString().slice(0, 10);
         if (type === 'transactions') {
@@ -911,7 +915,7 @@ const ReportsTab: FC<{ project: Project; transactions: Transaction[]; followUps:
     return (<Card><h3 className="text-xl font-bold text-brand-indigo mb-6">Reporting & Exports</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><Button onClick={() => handleExport('transactions')} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800">Export Transactions CSV</Button><Button onClick={() => handleExport('followups')} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800">Export Follow-Ups CSV</Button><Button onClick={() => handleExport('todos')} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800">Export To-Dos CSV</Button><Button onClick={handlePrint} className="w-full bg-brand-indigo hover:bg-indigo-700 text-white">Print Project Summary</Button></div></Card>);
 };
 
-const PrintableView: FC<{ project: Project; transactions: Transaction[]; calcs: any }> = ({ project, transactions, calcs }) => (
+const PrintableView = ({ project, transactions, calcs }: { project: Project; transactions: Transaction[]; calcs: any }) => (
     <div className="p-8 font-sans text-gray-800">
         <header className="flex justify-between items-center border-b-2 border-brand-indigo pb-4 mb-8">
             <div><h1 className="text-4xl font-bold text-brand-indigo">{project.name}</h1><p className="text-gray-600">{project.siteAddress}</p></div>
@@ -927,17 +931,14 @@ const PrintableView: FC<{ project: Project; transactions: Transaction[]; calcs: 
 // MODAL FORM IMPLEMENTATIONS
 // ===================================================================================
 
-const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Project | null; onSave: (data: Partial<Project>, existing: Project | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, project, onSave, onSuccess }) => {
+const ProjectFormModal = ({ isOpen, onClose, project, onSave, onSuccess }: { isOpen: boolean; onClose: () => void; project: Project | null; onSave: (data: Partial<Project>, existing: Project | null) => void; onSuccess: (msg: string) => void; }) => {
     const [formData, setFormData] = useState<Partial<Project>>({});
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (isOpen) {
             setFormData(project ? { ...project } : {
-                status: 'Draft',
-                estimation: { ...DEFAULT_ESTIMATION },
-                milestones: [...DEFAULT_MILESTONES],
-                paymentMilestones: [...DEFAULT_PAYMENT_MILESTONES],
+                ...DEFAULT_PROJECT
             });
             setErrors({});
         }
@@ -1014,7 +1015,7 @@ const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Proj
     );
 };
 
-const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transaction: Transaction | null; projectId: string; onSave: (data: Partial<Transaction>, existing: Transaction | null) => void; onSuccess: (msg: string) => void; }> = ({ isOpen, onClose, transaction, projectId, onSave, onSuccess }) => {
+const TransactionFormModal = ({ isOpen, onClose, transaction, projectId, onSave, onSuccess }: { isOpen: boolean; onClose: () => void; transaction: Transaction | null; projectId: string; onSave: (data: Partial<Transaction>, existing: Transaction | null) => void; onSuccess: (msg: string) => void; }) => {
     const { categories } = useAppContext();
     const [formData, setFormData] = useState<Partial<Transaction>>({});
 
@@ -1067,7 +1068,7 @@ const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transacti
     );
 };
 
-const CategoryManagerModal: FC<{ isOpen: boolean; onClose: () => void; categories: Category[]; onSuccess: (msg: string) => void; onSave: (data: Partial<Category>, existing: Category | null) => void; onDelete: (id: string) => void; }> = ({ isOpen, onClose, categories, onSuccess, onSave, onDelete }) => {
+const CategoryManagerModal = ({ isOpen, onClose, categories, onSuccess, onSave, onDelete }: { isOpen: boolean; onClose: () => void; categories: Category[]; onSuccess: (msg: string) => void; onSave: (data: Partial<Category>, existing: Category | null) => void; onDelete: (id: string) => void; }) => {
     const [newCategoryName, setNewCategoryName] = useState('');
     const handleAddCategory = () => {
         if (newCategoryName.trim() && !categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
@@ -1086,7 +1087,7 @@ const CategoryManagerModal: FC<{ isOpen: boolean; onClose: () => void; categorie
     );
 };
 
-const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: FollowUp | null; projectId: string; onSuccess: (msg: string) => void; onSave: (data: Partial<FollowUp>, existing: FollowUp | null) => void; }> = ({ isOpen, onClose, followUp, projectId, onSuccess, onSave }) => {
+const FollowUpFormModal = ({ isOpen, onClose, followUp, projectId, onSuccess, onSave }: { isOpen: boolean; onClose: () => void; followUp: FollowUp | null; projectId: string; onSuccess: (msg: string) => void; onSave: (data: Partial<FollowUp>, existing: FollowUp | null) => void; }) => {
     const [formData, setFormData] = useState<Partial<FollowUp>>({});
     useEffect(() => {
         if (isOpen) setFormData(followUp ? { ...followUp } : { project_id: projectId, status: 'Pending', date: new Date().toISOString().slice(0, 10) });
@@ -1121,7 +1122,7 @@ const FollowUpFormModal: FC<{ isOpen: boolean; onClose: () => void; followUp: Fo
     );
 };
 
-const TodoFormModal: FC<{ isOpen: boolean; onClose: () => void; todo: Todo | null; projectId: string; onSuccess: (msg: string) => void; onSave: (data: Partial<Todo>, existing: Todo | null) => void; }> = ({ isOpen, onClose, todo, projectId, onSuccess, onSave }) => {
+const TodoFormModal = ({ isOpen, onClose, todo, projectId, onSuccess, onSave }: { isOpen: boolean; onClose: () => void; todo: Todo | null; projectId: string; onSuccess: (msg: string) => void; onSave: (data: Partial<Todo>, existing: Todo | null) => void; }) => {
     const [formData, setFormData] = useState<Partial<Todo>>({});
     useEffect(() => {
         if (isOpen) setFormData(todo ? { ...todo } : { project_id: projectId, status: 'Open', priority: 'Medium' });
