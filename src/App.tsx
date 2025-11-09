@@ -160,7 +160,7 @@ const formatCurrency = (amount?: number) => {
 };
 
 const exportToCsv = (filename: string, rows: (string | number | undefined | null)[][]) => {
-    const csvContent = "data:text/csv;charset=utf--8," + rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(",")).join('\n');
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(",")).join('\n');
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
     link.setAttribute("download", `${filename}.csv`);
