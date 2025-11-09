@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, FC, PropsWithChildren, useRef, createContext, useContext } from 'react';
+import React, { useState, useEffect, useMemo, FC, useRef, createContext, useContext } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import html2pdf from 'html2pdf.js';
@@ -37,6 +37,51 @@ const DEFAULT_PAYMENT_MILESTONES: PaymentMilestone[] = [
     { label: 'Installation Payment', amount: 0, status: 'Pending' },
     { label: 'Final Payment', amount: 0, status: 'Pending' },
 ];
+
+const DEFAULT_PROJECT: Omit<Project, 'id' | 'uid' | 'created_at' | 'updated_at'> = {
+    name: '',
+    clientName: '',
+    clientPhone: '',
+    clientEmail: '',
+    clientCompany: '',
+    siteAddress: '',
+    googleMapsLink: '',
+    authority: UAE_AUTHORITIES[0],
+    contractValue: 0,
+    status: 'Draft',
+    notes: '',
+    estimation: DEFAULT_ESTIMATION,
+    milestones: DEFAULT_MILESTONES,
+    paymentMilestones: DEFAULT_PAYMENT_MILESTONES,
+    tags: [],
+};
+
+const DEFAULT_TRANSACTION: Omit<Transaction, 'id' | 'uid' | 'created_at' | 'updated_at' | 'project_id'> = {
+    type: 'Expense',
+    amount: 0,
+    date: new Date().toISOString(),
+    description: '',
+    category: '',
+    paymentMode: DEFAULT_PAYMENT_MODES[0],
+};
+
+const DEFAULT_TODO: Omit<Todo, 'id' | 'uid' | 'created_at' | 'updated_at' | 'project_id'> = {
+    task: '',
+    priority: 'Medium',
+    status: 'Open',
+};
+
+const DEFAULT_FOLLOWUP: Omit<FollowUp, 'id' | 'uid' | 'created_at' | 'updated_at' | 'project_id'> = {
+    title: '',
+    details: '',
+    date: new Date().toISOString(),
+    owner: '',
+    status: 'Pending',
+};
+
+const DEFAULT_CATEGORY: Omit<Category, 'id' | 'uid' | 'created_at' | 'updated_at'> = {
+    name: '',
+};
 
 // ===================================================================================
 // GLOBAL APP CONTEXT
@@ -82,12 +127,13 @@ const useAppContext = () => {
 // HELPERS
 // ===================================================================================
 const getOrCreateUserId = (): string => {
-    let userId = localStorage.getItem('solar_oasis_userId');
-    if (!userId) {
-        userId = uuidv4();
-        localStorage.setItem('solar_oasis_userId', userId);
+    const existingUserId = localStorage.getItem('solar_oasis_userId');
+    if (existingUserId) {
+        return existingUserId;
     }
-    return userId;
+    const newUserId = uuidv4();
+    localStorage.setItem('solar_oasis_userId', newUserId);
+    return newUserId;
 };
 
 const formatDate = (dateString?: string | Date) => {
@@ -135,12 +181,12 @@ const PencilIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 
 const ClipboardCopyIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h.01M9 16h.01" /></svg>;
 const MapPinIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.1.4-.27.6-.5s.4-.51.5-.82c.1-.31.1-.65.1-1.01V5.75a1 1 0 00-1-1H4a1 1 0 00-1 1v7.25c0 .36.002.7.1 1.01.1.31.2.52.5.82s.4.4.6.5c.18.13.395.24.6.34.09.03.18.06.28.09l.018.008.006.003zM10 16.5a1 1 0 00-1 1v.083c0 .03.002.05.005.071.002.015.007.03.012.044s.01.028.017.04.015.022.023.032c.084.103.22.22.4.333.18.114.33.2.4.242.07.042.1.06.1.06s.03-.018.1-.06a2.12 2.12 0 00.4-.242c.18-.113.315-.23.4-.333.008-.01.015-.02.023-.032a.5.5 0 00.017-.04.6.6 0 00.012-.044c.003-.02.005-.04.005-.07V17.5a1 1 0 00-1-1h-2z" clipRule="evenodd" /></svg>;
 
-const Card: FC<PropsWithChildren<{ className?: string }>> = ({ children, className }) => <div className={`bg-white rounded-xl shadow-md p-6 ${className}`}>{children}</div>;
-const Button: FC<PropsWithChildren<{ onClick?: () => void; className?: string; type?: "button" | "submit" | "reset"; disabled?: boolean; }>> = ({ children, onClick, className, type = "button", disabled }) => <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>{children}</button>;
+const Card: FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => <div className={`bg-white rounded-xl shadow-md p-6 ${className}`}>{children}</div>;
+const Button: FC<{ children: React.ReactNode; onClick?: () => void; className?: string; type?: "button" | "submit" | "reset"; disabled?: boolean; }> = ({ children, onClick, className, type = "button", disabled }) => <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>{children}</button>;
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<input id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
 const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<textarea id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
 const Select: FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string, error?: string, children: React.ReactNode }> = ({ label, name, error, children, ...props }) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<select id={name} name={name} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props}>{children}</select>{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-const Modal: FC<PropsWithChildren<{ isOpen: boolean; onClose: () => void; title: string; }>> = ({ isOpen, onClose, title, children }) => { if (!isOpen) return null; return (<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}><div className="p-6 border-b sticky top-0 bg-white z-10"><div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-brand-indigo">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div></div><div className="p-6">{children}</div></div></div>); };
+const Modal: FC<{ children: React.ReactNode; isOpen: boolean; onClose: () => void; title: string; }> = ({ isOpen, onClose, title, children }) => { if (!isOpen) return null; return (<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}><div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}><div className="p-6 border-b sticky top-0 bg-white z-10"><div className="flex justify-between items-center"><h3 className="text-2xl font-bold text-brand-indigo">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div></div><div className="p-6">{children}</div></div></div>); };
 const Toast: FC<{ message: string; show: boolean; type?: 'success' | 'error' }> = ({ message, show, type = 'success' }) => <div className={`fixed bottom-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${show ? 'translate-x-0' : 'translate-x-full'} ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{message}</div>;
 const EmptyState: FC<{ title: string; message: string; action?: React.ReactNode }> = ({ title, message, action }) => <div className="text-center py-12 px-6 bg-gray-50 rounded-lg"><h3 className="text-lg font-medium text-gray-900">{title}</h3><p className="mt-1 text-sm text-gray-500">{message}</p>{action && <div className="mt-6">{action}</div>}</div>;
 
@@ -148,7 +194,7 @@ const EmptyState: FC<{ title: string; message: string; action?: React.ReactNode 
 // APP PROVIDER & MAIN COMPONENT
 // ===================================================================================
 
-const AppProvider: FC<PropsWithChildren> = ({ children }) => {
+const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
     const [userId, setUserId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -225,7 +271,7 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         const isNew = !existing;
         const now = new Date().toISOString();
         if (isNew) {
-            const newItem = { ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now } as Project;
+            const newItem: Project = { ...DEFAULT_PROJECT, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
             setProjects(prev => [...prev, newItem]); // Optimistic update
             try {
                 const savedItem = await api.saveItem('projects', newItem, true);
@@ -274,65 +320,173 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         }
     };
 
-    const createSaveFunction = <T extends { id: string, uid: string }>(
-        type: 'transactions' | 'todos' | 'followups' | 'categories',
-        setState: React.Dispatch<React.SetStateAction<T[]>>
-    ) => async (data: Partial<T>, existing: T | null) => {
+    const saveTransaction = async (data: Partial<Transaction>, existing: Transaction | null) => {
         if (!userId) return showToast("User ID not found.", "error");
         const isNew = !existing;
         const now = new Date().toISOString();
         if (isNew) {
-            // Fix: Use 'as unknown as T' for type assertion on a generic type.
-            // The object literal is being cast to a generic type 'T'. TypeScript cannot
-            // guarantee that the shape of the object literal matches 'T' for all possible
-            // instantiations of 'T', because `data` is `Partial<T>`.
-            // Using `as unknown as T` tells TypeScript that we, the developers, are
-            // guaranteeing the type correctness, which is handled by logic in the form components.
-            const newItem = { ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now } as unknown as T;
-            setState(prev => [...prev, newItem]);
+            // FIX: project_id is required for new transactions. This ensures type safety.
+            if (!data.project_id) {
+                showToast("Cannot create transaction without a project.", "error");
+                return;
+            }
+            const newItem: Transaction = { ...DEFAULT_TRANSACTION, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
+            setTransactions(prev => [...prev, newItem]);
             try {
-                const savedItem = await api.saveItem(type, newItem, true);
-                setState(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
+                const savedItem = await api.saveItem('transactions', newItem, true);
+                setTransactions(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
             } catch (error) {
-                showToast(`Error saving ${type}.`, "error");
-                setState(prev => prev.filter(i => i.id !== newItem.id));
+                showToast("Error saving transaction.", "error");
+                setTransactions(prev => prev.filter(i => i.id !== newItem.id));
             }
         } else {
             const updatedItem = { ...existing!, ...data, updated_at: now };
-            const originalState = (setState as any)(s => [...s]);
-            setState(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            const originalState = [...transactions];
+            setTransactions(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
             try {
-                await api.saveItem(type, updatedItem, false);
+                await api.saveItem('transactions', updatedItem, false);
             } catch (error) {
-                showToast(`Error updating ${type}. Reverting.`, "error");
-                setState(originalState);
+                showToast("Error updating transaction. Reverting.", "error");
+                setTransactions(originalState);
             }
         }
     };
 
-    const createDeleteFunction = <T extends { id: string }>(
-        type: 'transactions' | 'todos' | 'followups' | 'categories',
-        setState: React.Dispatch<React.SetStateAction<T[]>>
-    ) => async (id: string) => {
-        const originalState = (setState as any)(s => [...s]);
-        setState(prev => prev.filter(i => i.id !== id));
+    const deleteTransaction = async (id: string) => {
+        const originalState = [...transactions];
+        setTransactions(prev => prev.filter(i => i.id !== id));
         try {
-            await api.deleteItemById(type, id);
+            await api.deleteItemById('transactions', id);
         } catch (error) {
-            showToast(`Error deleting ${type}. Reverting.`, "error");
-            setState(originalState);
+            showToast("Error deleting transaction. Reverting.", "error");
+            setTransactions(originalState);
         }
     };
 
-    const saveTransaction = createSaveFunction('transactions', setTransactions);
-    const deleteTransaction = createDeleteFunction('transactions', setTransactions);
-    const saveTodo = createSaveFunction('todos', setTodos);
-    const deleteTodo = createDeleteFunction('todos', setTodos);
-    const saveFollowUp = createSaveFunction('followups', setFollowUps);
-    const deleteFollowUp = createDeleteFunction('followups', setFollowUps);
-    const saveCategory = createSaveFunction('categories', setCategories);
-    const deleteCategory = createDeleteFunction('categories', setCategories);
+    const saveTodo = async (data: Partial<Todo>, existing: Todo | null) => {
+        if (!userId) return showToast("User ID not found.", "error");
+        const isNew = !existing;
+        const now = new Date().toISOString();
+        if (isNew) {
+            // FIX: project_id is required for new todos. This ensures type safety.
+            if (!data.project_id) {
+                showToast("Cannot create to-do without a project.", "error");
+                return;
+            }
+            const newItem: Todo = { ...DEFAULT_TODO, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
+            setTodos(prev => [...prev, newItem]);
+            try {
+                const savedItem = await api.saveItem('todos', newItem, true);
+                setTodos(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
+            } catch (error) {
+                showToast("Error saving to-do.", "error");
+                setTodos(prev => prev.filter(i => i.id !== newItem.id));
+            }
+        } else {
+            const updatedItem = { ...existing!, ...data, updated_at: now };
+            const originalState = [...todos];
+            setTodos(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            try {
+                await api.saveItem('todos', updatedItem, false);
+            } catch (error) {
+                showToast("Error updating to-do. Reverting.", "error");
+                setTodos(originalState);
+            }
+        }
+    };
 
+    const deleteTodo = async (id: string) => {
+        const originalState = [...todos];
+        setTodos(prev => prev.filter(i => i.id !== id));
+        try {
+            await api.deleteItemById('todos', id);
+        } catch (error) {
+            showToast("Error deleting to-do. Reverting.", "error");
+            setTodos(originalState);
+        }
+    };
+    
+    const saveFollowUp = async (data: Partial<FollowUp>, existing: FollowUp | null) => {
+        if (!userId) return showToast("User ID not found.", "error");
+        const isNew = !existing;
+        const now = new Date().toISOString();
+        if (isNew) {
+            // FIX: project_id is required for new follow-ups. This ensures type safety.
+            if (!data.project_id) {
+                showToast("Cannot create follow-up without a project.", "error");
+                return;
+            }
+            const newItem: FollowUp = { ...DEFAULT_FOLLOWUP, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
+            setFollowUps(prev => [...prev, newItem]);
+            try {
+                const savedItem = await api.saveItem('followups', newItem, true);
+                setFollowUps(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
+            } catch (error) {
+                showToast("Error saving follow-up.", "error");
+                setFollowUps(prev => prev.filter(i => i.id !== newItem.id));
+            }
+        } else {
+            const updatedItem = { ...existing!, ...data, updated_at: now };
+            const originalState = [...followUps];
+            setFollowUps(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            try {
+                await api.saveItem('followups', updatedItem, false);
+            } catch (error) {
+                showToast("Error updating follow-up. Reverting.", "error");
+                setFollowUps(originalState);
+            }
+        }
+    };
+
+    const deleteFollowUp = async (id: string) => {
+        const originalState = [...followUps];
+        setFollowUps(prev => prev.filter(i => i.id !== id));
+        try {
+            await api.deleteItemById('followups', id);
+        } catch (error) {
+            showToast("Error deleting follow-up. Reverting.", "error");
+            setFollowUps(originalState);
+        }
+    };
+
+    const saveCategory = async (data: Partial<Category>, existing: Category | null) => {
+        if (!userId) return showToast("User ID not found.", "error");
+        const isNew = !existing;
+        const now = new Date().toISOString();
+        if (isNew) {
+            const newItem: Category = { ...DEFAULT_CATEGORY, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
+            setCategories(prev => [...prev, newItem]);
+            try {
+                const savedItem = await api.saveItem('categories', newItem, true);
+                setCategories(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
+            } catch (error) {
+                showToast("Error saving category.", "error");
+                setCategories(prev => prev.filter(i => i.id !== newItem.id));
+            }
+        } else {
+            const updatedItem = { ...existing!, ...data, updated_at: now };
+            const originalState = [...categories];
+            setCategories(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            try {
+                await api.saveItem('categories', updatedItem, false);
+            } catch (error) {
+                showToast("Error updating category. Reverting.", "error");
+                setCategories(originalState);
+            }
+        }
+    };
+
+    const deleteCategory = async (id: string) => {
+        const originalState = [...categories];
+        setCategories(prev => prev.filter(i => i.id !== id));
+        try {
+            await api.deleteItemById('categories', id);
+        } catch (error) {
+            showToast("Error deleting category. Reverting.", "error");
+            setCategories(originalState);
+        }
+    };
+    
     const updateProjectMilestones = async (projectId: string, milestones: Milestone[]) => {
         const project = projects.find(p => p.id === projectId);
         if (!project) return;
