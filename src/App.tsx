@@ -243,7 +243,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
                         updated_at: new Date().toISOString()
                     }));
                     setCategories(newCategories);
-                    Promise.all(newCategories.map(cat => api.saveItem('categories', cat, true))).catch(err => {
+                    Promise.all(newCategories.map(cat => api.saveCategory(cat, true))).catch(err => {
                        console.error("Failed to save default categories:", err);
                     });
                 }
@@ -274,7 +274,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const newItem: Project = { ...DEFAULT_PROJECT, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
             setProjects(prev => [...prev, newItem]); // Optimistic update
             try {
-                const savedItem = await api.saveItem('projects', newItem, true);
+                const savedItem = await api.saveProject(newItem, true);
                 setProjects(prev => prev.map(p => p.id === newItem.id ? savedItem : p)); // Replace with server response
             } catch (error) {
                 showToast("Error saving project.", "error");
@@ -285,7 +285,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const originalProjects = [...projects];
             setProjects(prev => prev.map(p => p.id === updatedItem.id ? updatedItem : p)); // Optimistic update
             try {
-                await api.saveItem('projects', updatedItem, false);
+                await api.saveProject(updatedItem, false);
             } catch (error) {
                 showToast("Error updating project. Reverting.", "error");
                 setProjects(originalProjects); // Revert
@@ -333,7 +333,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const newItem: Transaction = { ...DEFAULT_TRANSACTION, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
             setTransactions(prev => [...prev, newItem]);
             try {
-                const savedItem = await api.saveItem('transactions', newItem, true);
+                const savedItem = await api.saveTransaction(newItem, true);
                 setTransactions(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
             } catch (error) {
                 showToast("Error saving transaction.", "error");
@@ -344,7 +344,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const originalState = [...transactions];
             setTransactions(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
             try {
-                await api.saveItem('transactions', updatedItem, false);
+                await api.saveTransaction(updatedItem, false);
             } catch (error) {
                 showToast("Error updating transaction. Reverting.", "error");
                 setTransactions(originalState);
@@ -376,7 +376,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const newItem: Todo = { ...DEFAULT_TODO, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
             setTodos(prev => [...prev, newItem]);
             try {
-                const savedItem = await api.saveItem('todos', newItem, true);
+                const savedItem = await api.saveTodo(newItem, true);
                 setTodos(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
             } catch (error) {
                 showToast("Error saving to-do.", "error");
@@ -387,7 +387,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const originalState = [...todos];
             setTodos(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
             try {
-                await api.saveItem('todos', updatedItem, false);
+                await api.saveTodo(updatedItem, false);
             } catch (error) {
                 showToast("Error updating to-do. Reverting.", "error");
                 setTodos(originalState);
@@ -419,7 +419,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const newItem: FollowUp = { ...DEFAULT_FOLLOWUP, ...data, project_id: data.project_id, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
             setFollowUps(prev => [...prev, newItem]);
             try {
-                const savedItem = await api.saveItem('followups', newItem, true);
+                const savedItem = await api.saveFollowUp(newItem, true);
                 setFollowUps(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
             } catch (error) {
                 showToast("Error saving follow-up.", "error");
@@ -430,7 +430,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const originalState = [...followUps];
             setFollowUps(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
             try {
-                await api.saveItem('followups', updatedItem, false);
+                await api.saveFollowUp(updatedItem, false);
             } catch (error) {
                 showToast("Error updating follow-up. Reverting.", "error");
                 setFollowUps(originalState);
@@ -457,7 +457,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const newItem: Category = { ...DEFAULT_CATEGORY, ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now };
             setCategories(prev => [...prev, newItem]);
             try {
-                const savedItem = await api.saveItem('categories', newItem, true);
+                const savedItem = await api.saveCategory(newItem, true);
                 setCategories(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
             } catch (error) {
                 showToast("Error saving category.", "error");
@@ -468,7 +468,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
             const originalState = [...categories];
             setCategories(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
             try {
-                await api.saveItem('categories', updatedItem, false);
+                await api.saveCategory(updatedItem, false);
             } catch (error) {
                 showToast("Error updating category. Reverting.", "error");
                 setCategories(originalState);

@@ -28,8 +28,8 @@ export const fetchAllData = async (uid: string): Promise<ApiResponse> => {
     return response.json();
 };
 
-// Generic function to create or update an item
-export const saveItem = async <T extends { id: string }>(type: DataType, item: Partial<T>, isNew: boolean): Promise<T> => {
+// Internal generic function to create or update an item
+const saveItem = async <T extends { id: string }>(type: DataType, item: Partial<T>, isNew: boolean): Promise<T> => {
     const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
@@ -49,6 +49,13 @@ export const saveItem = async <T extends { id: string }>(type: DataType, item: P
     }
     return response.json();
 };
+
+// Export specific, non-generic functions for saving each type of item
+export const saveProject = (item: Partial<Project>, isNew: boolean): Promise<Project> => saveItem('projects', item, isNew);
+export const saveTransaction = (item: Partial<Transaction>, isNew: boolean): Promise<Transaction> => saveItem('transactions', item, isNew);
+export const saveTodo = (item: Partial<Todo>, isNew: boolean): Promise<Todo> => saveItem('todos', item, isNew);
+export const saveFollowUp = (item: Partial<FollowUp>, isNew: boolean): Promise<FollowUp> => saveItem('followups', item, isNew);
+export const saveCategory = (item: Partial<Category>, isNew: boolean): Promise<Category> => saveItem('categories', item, isNew);
 
 
 // Function to delete an item
