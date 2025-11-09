@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, FC, useRef, createContext, useCont
 import { v4 as uuidv4 } from 'uuid';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import html2pdf from 'html2pdf.js';
-import { Project, Transaction, FollowUp, Todo, Category, ModalType, Estimation, Milestone, PaymentMilestone } from './types';
+import { Project, Transaction, FollowUp, Todo, Category, ModalType, Estimation, Milestone, PaymentMilestone, EditableItem } from './types';
 import * as api from './api';
 
 
@@ -542,10 +542,10 @@ const App: FC = () => (
 const AppLayout: FC = () => {
     const { deleteProject } = useAppContext();
     const [activeModal, setActiveModal] = useState<ModalType>(null);
-    const [editingItem, setEditingItem] = useState<any>(null);
+    const [editingItem, setEditingItem] = useState<EditableItem | null>(null);
     const [itemToDelete, setItemToDelete] = useState<{ onConfirm: () => Promise<void>; name: string } | null>(null);
 
-    const handleOpenModal = (type: ModalType, item: any = null) => {
+    const handleOpenModal = (type: ModalType, item: EditableItem | null = null) => {
         setEditingItem(item);
         setActiveModal(type);
     };
@@ -607,8 +607,16 @@ const ProjectSidebar: FC<{onNewProject: () => void}> = ({onNewProject}) => {
             .sort((a, b) => {
                 switch (sort) {
                     case 'name_asc': return a.name.localeCompare(b.name);
-                    case 'created_at_desc': return parseISO(b.created_at).getTime() - parseISO(a.created_at).getTime();
-                    case 'updated_at_desc': return parseISO(b.updated_at).getTime() - parseISO(a.updated_at).getTime();
+                    case 'created_at_desc': {
+                        const dateA = parseISO(a.created_at ?? '');
+                        const dateB = parseISO(b.created_at ?? '');
+                        return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
+                    }
+                    case 'updated_at_desc': {
+                        const dateA = parseISO(a.updated_at ?? '');
+                        const dateB = parseISO(b.updated_at ?? '');
+                        return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
+                    }
                     default: return 0;
                 }
             });
@@ -636,7 +644,7 @@ const ProjectSidebar: FC<{onNewProject: () => void}> = ({onNewProject}) => {
     )
 };
 
-const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { onConfirm: () => Promise<void>; name: string } | null; handleCloseModal: () => void; }> = ({ activeModal, editingItem, itemToDelete, handleCloseModal }) => {
+const Modals: FC<{ activeModal: ModalType; editingItem: EditableItem | null; itemToDelete: { onConfirm: () => Promise<void>; name: string } | null; handleCloseModal: () => void; }> = ({ activeModal, editingItem, itemToDelete, handleCloseModal }) => {
     const { saveProject, saveTransaction, saveFollowUp, saveTodo, saveCategory, deleteCategory, showToast, categories, selectedProjectId } = useAppContext();
     const project = useAppContext().projects.find(p => p.id === selectedProjectId);
 
@@ -649,12 +657,12 @@ const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { onC
     
     return (
         <>
-            <ProjectFormModal isOpen={activeModal === 'project'} onClose={handleCloseModal} project={editingItem} onSave={saveProject} onSuccess={showToast} />
+            <ProjectFormModal isOpen={activeModal === 'project'} onClose={handleCloseModal} project={editingItem as Project | null} onSave={saveProject} onSuccess={showToast} />
             {project && (
                 <>
-                <TransactionFormModal isOpen={activeModal === 'transaction'} onClose={handleCloseModal} transaction={editingItem} projectId={project.id} onSave={saveTransaction} onSuccess={showToast} />
-                <FollowUpFormModal isOpen={activeModal === 'followup'} onClose={handleCloseModal} followUp={editingItem} projectId={project.id} onSave={saveFollowUp} onSuccess={showToast} />
-                <TodoFormModal isOpen={activeModal === 'todo'} onClose={handleCloseModal} todo={editingItem} projectId={project.id} onSave={saveTodo} onSuccess={showToast} />
+                <TransactionFormModal isOpen={activeModal === 'transaction'} onClose={handleCloseModal} transaction={editingItem as Transaction | null} projectId={project.id} onSave={saveTransaction} onSuccess={showToast} />
+                <FollowUpFormModal isOpen={activeModal === 'followup'} onClose={handleCloseModal} followUp={editingItem as FollowUp | null} projectId={project.id} onSave={saveFollowUp} onSuccess={showToast} />
+                <TodoFormModal isOpen={activeModal === 'todo'} onClose={handleCloseModal} todo={editingItem as Todo | null} projectId={project.id} onSave={saveTodo} onSuccess={showToast} />
                 </>
             )}
             <CategoryManagerModal isOpen={activeModal === 'category'} onClose={handleCloseModal} categories={categories} onSave={saveCategory} onDelete={deleteCategory} onSuccess={showToast} />
@@ -666,7 +674,7 @@ const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { onC
     )
 };
 
-const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => void; openModal: (type: ModalType, item?: any) => void; }> = ({ project, onEdit, onDelete, openModal }) => {
+const ProjectDetail: FC<{ project: Project; onEdit: () => void; onDelete: () => void; openModal: (type: ModalType, item?: EditableItem | null) => void; }> = ({ project, onEdit, onDelete, openModal }) => {
     const { transactions, todos, followUps, deleteTransaction, deleteFollowUp, deleteTodo, saveTodo } = useAppContext();
     const [activeModal, setActiveModal] = useState<ModalType>(null);
     const [itemToDelete, setItemToDelete] = useState<{ onConfirm: () => Promise<void>; name: string } | null>(null);
@@ -794,7 +802,20 @@ const TransactionsTab: FC<{ transactions: Transaction[]; openModal: (type: Modal
         return [...transactions]
             .filter(tx => (searchTerm ? tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || tx.category.toLowerCase().includes(searchTerm.toLowerCase()) : true) && (filters.category === 'all' ? true : tx.category === filters.category) && (filters.type === 'all' ? true : tx.type === filters.type))
             .sort((a, b) => {
-                switch (sort) { case 'amount_desc': return safeNumber(b.amount) - safeNumber(a.amount); case 'amount_asc': return safeNumber(a.amount) - safeNumber(b.amount); case 'date_asc': return (parseISO(a.date)?.getTime() || 0) - (parseISO(b.date)?.getTime() || 0); default: return (parseISO(b.date)?.getTime() || 0) - (parseISO(a.date)?.getTime() || 0); }
+                switch (sort) {
+                    case 'amount_desc': return safeNumber(b.amount) - safeNumber(a.amount);
+                    case 'amount_asc': return safeNumber(a.amount) - safeNumber(b.amount);
+                    case 'date_asc': {
+                        const dateA = parseISO(a.date ?? '');
+                        const dateB = parseISO(b.date ?? '');
+                        return (isValid(dateA) ? dateA.getTime() : 0) - (isValid(dateB) ? dateB.getTime() : 0);
+                    }
+                    default: { // date_desc
+                        const dateA = parseISO(a.date ?? '');
+                        const dateB = parseISO(b.date ?? '');
+                        return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
+                    }
+                }
             });
     }, [transactions, searchTerm, filters, sort]);
     return (<Card><div className="flex justify-between items-center mb-4 flex-wrap gap-4"><h3 className="text-xl font-bold text-brand-indigo">Transactions</h3><div className="flex gap-2"><Button onClick={() => openModal('category')} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Manage Categories</Button><Button onClick={() => openModal('transaction')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add Transaction</Button></div></div><div className="p-4 bg-gray-50 rounded-lg mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><Input placeholder="Search description, category..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /><Select value={filters.type} onChange={e => setFilters(f => ({ ...f, type: e.target.value }))}><option value="all">All Types</option><option>Income</option><option>Expense</option></Select><Select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}><option value="all">All Categories</option>{categories.map(c => <option key={c.id}>{c.name}</option>)}<option>Client Payment</option></Select><Select value={sort} onChange={e => setSort(e.target.value)}><option value="date_desc">Date (Newest)</option><option value="date_asc">Date (Oldest)</option><option value="amount_desc">Amount (High-Low)</option><option value="amount_asc">Amount (Low-High)</option></Select></div>{filteredAndSorted.length > 0 ? <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead><tr className="border-b bg-gray-50"><th className="p-3">Date</th><th className="p-3">Description</th><th className="p-3">Category</th><th className="p-3 text-right">Amount</th><th className="p-3"></th></tr></thead><tbody>{filteredAndSorted.map(tx => (<tr key={tx.id} className="border-b hover:bg-gray-50">
@@ -845,7 +866,13 @@ const BreakdownsTab: FC<{ transactions: Transaction[] }> = ({ transactions }) =>
 };
 
 const FollowUpsTab: FC<{ followUps: FollowUp[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }> = ({ followUps, openModal, onDelete }) => {
-    const sortedFollowUps = useMemo(() => [...followUps].sort((a, b) => (parseISO(b.date)?.getTime() || 0) - (parseISO(a.date)?.getTime() || 0)), [followUps]);
+    const sortedFollowUps = useMemo(() => {
+        return [...followUps].sort((a, b) => {
+            const dateA = parseISO(a.date ?? '');
+            const dateB = parseISO(b.date ?? '');
+            return (isValid(dateB) ? dateB.getTime() : 0) - (isValid(dateA) ? dateA.getTime() : 0);
+        });
+    }, [followUps]);
     const overdue = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) > 0);
     const upcoming = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) <= 0);
     const completed = sortedFollowUps.filter(f => f.status === 'Completed');
@@ -968,7 +995,7 @@ const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Proj
                 <div className="border-b pb-4">
                     <h4 className="font-semibold text-lg text-gray-800 mb-4">Contract & Dates</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Input label="Contract Value (AED)" name="contractValue" type="number" step="0.01" value={formData.contractValue || ''} onChange={handleChange} />
+                        <Input label="Contract Value (AED)" name="contractValue" type="number" step="0.01" value={formData.contractValue ?? ''} onChange={handleChange} />
                         <Input label="Expected Start Date" name="expectedStartDate" type="date" value={toInputDate(formData.expectedStartDate)} onChange={handleChange} />
                         <Input label="Expected End Date" name="expectedEndDate" type="date" value={toInputDate(formData.expectedEndDate)} onChange={handleChange} />
                     </div>
@@ -976,10 +1003,10 @@ const ProjectFormModal: FC<{ isOpen: boolean; onClose: () => void; project: Proj
                  <div className="border-b pb-4">
                     <h4 className="font-semibold text-lg text-gray-800 mb-4">Estimation</h4>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input label="System Size (kWp)" name="estimation.systemSizeKwp" type="number" step="0.1" value={formData.estimation?.systemSizeKwp || ''} onChange={handleChange} />
-                        <Input label="Total CAPEX Budget (AED)" name="estimation.totalCapexBudget" type="number" step="0.01" value={formData.estimation?.totalCapexBudget || ''} onChange={handleChange} />
-                        <Input label="Contingency (%)" name="estimation.contingencyPercent" type="number" step="1" value={formData.estimation?.contingencyPercent || ''} onChange={handleChange} />
-                        <Input label="VAT (%)" name="estimation.vatPercent" type="number" step="0.1" value={formData.estimation?.vatPercent || ''} onChange={handleChange} />
+                        <Input label="System Size (kWp)" name="estimation.systemSizeKwp" type="number" step="0.1" value={formData.estimation?.systemSizeKwp ?? ''} onChange={handleChange} />
+                        <Input label="Total CAPEX Budget (AED)" name="estimation.totalCapexBudget" type="number" step="0.01" value={formData.estimation?.totalCapexBudget ?? ''} onChange={handleChange} />
+                        <Input label="Contingency (%)" name="estimation.contingencyPercent" type="number" step="1" value={formData.estimation?.contingencyPercent ?? ''} onChange={handleChange} />
+                        <Input label="VAT (%)" name="estimation.vatPercent" type="number" step="0.1" value={formData.estimation?.vatPercent ?? ''} onChange={handleChange} />
                         <div className="flex items-center gap-2 pt-6"><input type="checkbox" name="estimation.capexIncludesVat" id="capexIncludesVat" checked={formData.estimation?.capexIncludesVat || false} onChange={handleChange} className="h-4 w-4 rounded" /><label htmlFor="capexIncludesVat">CAPEX includes VAT</label></div>
                     </div>
                 </div>
@@ -1007,7 +1034,7 @@ const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transacti
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.description || !formData.amount) return;
+        if (!formData.description || formData.amount === null || formData.amount === undefined) return;
         onSave({ ...formData, project_id: projectId }, transaction);
         onSuccess(`Transaction ${transaction ? 'updated' : 'added'}!`);
         onClose();
@@ -1022,7 +1049,7 @@ const TransactionFormModal: FC<{ isOpen: boolean; onClose: () => void; transacti
                 </div>
                 <Input label="Description" name="description" value={formData.description || ''} onChange={handleChange} required />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <Input label="Amount (AED)" name="amount" type="number" step="0.01" value={formData.amount || ''} onChange={handleChange} required />
+                     <Input label="Amount (AED)" name="amount" type="number" step="0.01" value={formData.amount ?? ''} onChange={handleChange} required />
                      {formData.type === 'Expense' ? (
                         <Select label="Category" name="category" value={formData.category} onChange={handleChange} required>
                             <option value="">Select Category</option>

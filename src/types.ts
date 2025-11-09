@@ -99,3 +99,5 @@ export type ModalType =
     | 'todo'
     | 'confirmDelete'
     | null;
+
+export type EditableItem = Project | Transaction | Todo | FollowUp | Category;
