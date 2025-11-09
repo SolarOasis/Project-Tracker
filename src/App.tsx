@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, FC, PropsWithChildren, useRef, cre
 import { v4 as uuidv4 } from 'uuid';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import html2pdf from 'html2pdf.js';
-import { Project, Transaction, FollowUp, Todo, Category, ModalType, Estimation, Milestone, PaymentMilestone, Timestampable } from './types';
+import { Project, Transaction, FollowUp, Todo, Category, ModalType, Estimation, Milestone, PaymentMilestone } from './types';
 import * as api from './api';
 
 
@@ -218,64 +218,35 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
         fetchData();
     }, []);
 
-    const _createOrUpdateItem = async <T extends Timestampable & { id: string; uid: string; }>(
-        type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
-        itemData: Partial<T>,
-        existingItem: T | null,
-        setState: React.Dispatch<React.SetStateAction<T[]>>
-    ) => {
-        if (!userId) {
-            showToast("User ID not found. Cannot save.", "error");
-            return;
-        }
-        const isNew = !existingItem;
-        const now = new Date().toISOString();
+    // --- Type-Safe, Dedicated State Management Functions ---
 
+    const saveProject = async (data: Partial<Project>, existing: Project | null) => {
+        if (!userId) return showToast("User ID not found.", "error");
+        const isNew = !existing;
+        const now = new Date().toISOString();
         if (isNew) {
-            const newItem = { ...itemData, id: uuidv4(), uid: userId, created_at: now, updated_at: now } as T;
+            const newItem = { ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now } as Project;
+            setProjects(prev => [...prev, newItem]); // Optimistic update
             try {
-                const savedItem = await api.saveItem<T>(type, newItem, true);
-                setState(prev => [...prev, savedItem]);
+                const savedItem = await api.saveItem('projects', newItem, true);
+                setProjects(prev => prev.map(p => p.id === newItem.id ? savedItem : p)); // Replace with server response
             } catch (error) {
-                console.error("Failed to create item:", error);
-                showToast(`Error saving ${type}.`, "error");
+                showToast("Error saving project.", "error");
+                setProjects(prev => prev.filter(p => p.id !== newItem.id)); // Revert
             }
         } else {
-            const updatedItem = { ...existingItem!, ...itemData, updated_at: now } as T;
-            const originalState = [...(setState as any)(s => s)]; // Store original for revert
-            setState(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+            const updatedItem = { ...existing!, ...data, updated_at: now };
+            const originalProjects = [...projects];
+            setProjects(prev => prev.map(p => p.id === updatedItem.id ? updatedItem : p)); // Optimistic update
             try {
-                const savedItem = await api.saveItem<T>(type, updatedItem, false);
-                setState(prev => prev.map(item => item.id === savedItem.id ? savedItem : item));
+                await api.saveItem('projects', updatedItem, false);
             } catch (error) {
-                console.error("Failed to update item:", error);
-                showToast(`Error updating ${type}. Reverting changes.`, "error");
-                setState(originalState);
+                showToast("Error updating project. Reverting.", "error");
+                setProjects(originalProjects); // Revert
             }
         }
     };
-
-    const _deleteItem = async <T extends {id: string}>(
-        type: 'projects' | 'transactions' | 'todos' | 'followups' | 'categories',
-        id: string,
-        setState: React.Dispatch<React.SetStateAction<T[]>>
-    ) => {
-        const originalState = [...(setState as any)(s => s)];
-        setState(prev => prev.filter(item => item.id !== id));
-        try {
-            await api.deleteItemById(type, id);
-        } catch (error) {
-            showToast(`Error deleting. Reverting.`, "error");
-            setState(originalState);
-        }
-    }
-
-    const saveProject = (data: Partial<Project>, existing: Project | null) => _createOrUpdateItem<Project>('projects', data, existing, setProjects);
-    const saveTransaction = (data: Partial<Transaction>, existing: Transaction | null) => _createOrUpdateItem<Transaction>('transactions', data, existing, setTransactions);
-    const saveTodo = (data: Partial<Todo>, existing: Todo | null) => _createOrUpdateItem<Todo>('todos', data, existing, setTodos);
-    const saveFollowUp = (data: Partial<FollowUp>, existing: FollowUp | null) => _createOrUpdateItem<FollowUp>('followups', data, existing, setFollowUps);
-    const saveCategory = (data: Partial<Category>, existing: Category | null) => _createOrUpdateItem<Category>('categories', data, existing, setCategories);
-
+    
     const deleteProject = async (id: string) => {
         const originalProjects = [...projects];
         const originalTransactions = [...transactions];
@@ -302,11 +273,66 @@ const AppProvider: FC<PropsWithChildren> = ({ children }) => {
             setFollowUps(originalFollowUps);
         }
     };
-    const deleteTransaction = (id: string) => _deleteItem<Transaction>('transactions', id, setTransactions);
-    const deleteTodo = (id: string) => _deleteItem<Todo>('todos', id, setTodos);
-    const deleteFollowUp = (id: string) => _deleteItem<FollowUp>('followups', id, setFollowUps);
-    const deleteCategory = (id: string) => _deleteItem<Category>('categories', id, setCategories);
-    
+
+    const createSaveFunction = <T extends { id: string, uid: string }>(
+        type: 'transactions' | 'todos' | 'followups' | 'categories',
+        setState: React.Dispatch<React.SetStateAction<T[]>>
+    ) => async (data: Partial<T>, existing: T | null) => {
+        if (!userId) return showToast("User ID not found.", "error");
+        const isNew = !existing;
+        const now = new Date().toISOString();
+        if (isNew) {
+            // Fix: Use 'as unknown as T' for type assertion on a generic type.
+            // The object literal is being cast to a generic type 'T'. TypeScript cannot
+            // guarantee that the shape of the object literal matches 'T' for all possible
+            // instantiations of 'T', because `data` is `Partial<T>`.
+            // Using `as unknown as T` tells TypeScript that we, the developers, are
+            // guaranteeing the type correctness, which is handled by logic in the form components.
+            const newItem = { ...data, id: uuidv4(), uid: userId, created_at: now, updated_at: now } as unknown as T;
+            setState(prev => [...prev, newItem]);
+            try {
+                const savedItem = await api.saveItem(type, newItem, true);
+                setState(prev => prev.map(i => i.id === newItem.id ? savedItem : i));
+            } catch (error) {
+                showToast(`Error saving ${type}.`, "error");
+                setState(prev => prev.filter(i => i.id !== newItem.id));
+            }
+        } else {
+            const updatedItem = { ...existing!, ...data, updated_at: now };
+            const originalState = (setState as any)(s => [...s]);
+            setState(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+            try {
+                await api.saveItem(type, updatedItem, false);
+            } catch (error) {
+                showToast(`Error updating ${type}. Reverting.`, "error");
+                setState(originalState);
+            }
+        }
+    };
+
+    const createDeleteFunction = <T extends { id: string }>(
+        type: 'transactions' | 'todos' | 'followups' | 'categories',
+        setState: React.Dispatch<React.SetStateAction<T[]>>
+    ) => async (id: string) => {
+        const originalState = (setState as any)(s => [...s]);
+        setState(prev => prev.filter(i => i.id !== id));
+        try {
+            await api.deleteItemById(type, id);
+        } catch (error) {
+            showToast(`Error deleting ${type}. Reverting.`, "error");
+            setState(originalState);
+        }
+    };
+
+    const saveTransaction = createSaveFunction('transactions', setTransactions);
+    const deleteTransaction = createDeleteFunction('transactions', setTransactions);
+    const saveTodo = createSaveFunction('todos', setTodos);
+    const deleteTodo = createDeleteFunction('todos', setTodos);
+    const saveFollowUp = createSaveFunction('followups', setFollowUps);
+    const deleteFollowUp = createDeleteFunction('followups', setFollowUps);
+    const saveCategory = createSaveFunction('categories', setCategories);
+    const deleteCategory = createDeleteFunction('categories', setCategories);
+
     const updateProjectMilestones = async (projectId: string, milestones: Milestone[]) => {
         const project = projects.find(p => p.id === projectId);
         if (!project) return;
@@ -479,7 +505,7 @@ const Modals: FC<{ activeModal: ModalType; editingItem: any; itemToDelete: { onC
             )}
             <CategoryManagerModal isOpen={activeModal === 'category'} onClose={handleCloseModal} categories={categories} onSave={saveCategory} onDelete={deleteCategory} onSuccess={showToast} />
             <Modal isOpen={activeModal === 'confirmDelete'} onClose={handleCloseModal} title="Confirm Deletion">
-                <p>Are you sure you want to delete this {itemToDelete?.name.toLowerCase()}? This action cannot be undone.</p>
+                <p>Are you sure you want to delete {itemToDelete?.name ? `the ${itemToDelete.name.toLowerCase()}` : 'this item'}? This action cannot be undone.</p>
                 <div className="mt-6 flex justify-end gap-4"><Button onClick={handleCloseModal} className="bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</Button><Button onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">Delete</Button></div>
             </Modal>
         </>
