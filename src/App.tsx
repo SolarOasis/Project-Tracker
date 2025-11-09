@@ -310,7 +310,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         }
 
         try {
-            await api.deleteItemById('projects', id);
+            await api.deleteProject(id);
         } catch (error) {
             showToast(`Error deleting project. Reverting.`, "error");
             setProjects(originalProjects);
@@ -325,7 +325,6 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const isNew = !existing;
         const now = new Date().toISOString();
         if (isNew) {
-            // FIX: project_id is required for new transactions. This ensures type safety.
             if (!data.project_id) {
                 showToast("Cannot create transaction without a project.", "error");
                 return;
@@ -356,7 +355,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const originalState = [...transactions];
         setTransactions(prev => prev.filter(i => i.id !== id));
         try {
-            await api.deleteItemById('transactions', id);
+            await api.deleteTransaction(id);
         } catch (error) {
             showToast("Error deleting transaction. Reverting.", "error");
             setTransactions(originalState);
@@ -368,7 +367,6 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const isNew = !existing;
         const now = new Date().toISOString();
         if (isNew) {
-            // FIX: project_id is required for new todos. This ensures type safety.
             if (!data.project_id) {
                 showToast("Cannot create to-do without a project.", "error");
                 return;
@@ -399,7 +397,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const originalState = [...todos];
         setTodos(prev => prev.filter(i => i.id !== id));
         try {
-            await api.deleteItemById('todos', id);
+            await api.deleteTodo(id);
         } catch (error) {
             showToast("Error deleting to-do. Reverting.", "error");
             setTodos(originalState);
@@ -411,7 +409,6 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const isNew = !existing;
         const now = new Date().toISOString();
         if (isNew) {
-            // FIX: project_id is required for new follow-ups. This ensures type safety.
             if (!data.project_id) {
                 showToast("Cannot create follow-up without a project.", "error");
                 return;
@@ -442,7 +439,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const originalState = [...followUps];
         setFollowUps(prev => prev.filter(i => i.id !== id));
         try {
-            await api.deleteItemById('followups', id);
+            await api.deleteFollowUp(id);
         } catch (error) {
             showToast("Error deleting follow-up. Reverting.", "error");
             setFollowUps(originalState);
@@ -480,7 +477,7 @@ const AppProvider: FC<{ children: React.ReactNode }> = ({ children }) => {
         const originalState = [...categories];
         setCategories(prev => prev.filter(i => i.id !== id));
         try {
-            await api.deleteItemById('categories', id);
+            await api.deleteCategory(id);
         } catch (error) {
             showToast("Error deleting category. Reverting.", "error");
             setCategories(originalState);
