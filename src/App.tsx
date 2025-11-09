@@ -181,19 +181,90 @@ const PencilIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 
 const ClipboardCopyIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-6 4h.01M9 16h.01" /></svg>;
 const MapPinIcon = ({ className = "h-5 w-5" }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.1.4-.27.6-.5s.4-.51.5-.82c.1-.31.1-.65.1-1.01V5.75a1 1 0 00-1-1H4a1 1 0 00-1 1v7.25c0 .36.002.7.1 1.01.1.31.2.52.5.82s.4.4.6.5c.18.13.395.24.6.34.09.03.18.06.28.09l.018.008.006.003zM10 16.5a1 1 0 00-1 1v.083c0 .03.002.05.005.071.002.015.007.03.012.044s.01.028.017.04.015.022.023.032c.084.103.22.22.4.333.18.114.33.2.4.242.07.042.1.06.1.06s.03-.018.1-.06a2.12 2.12 0 00.4-.242c.18-.113.315-.23.4-.333.008-.01.015-.02.023-.032a.5.5 0 00.017-.04.6.6 0 00.012-.044c.003-.02.005-.04.005-.07V17.5a1 1 0 00-1-1h-2z" clipRule="evenodd" /></svg>;
 
-// FIX: Changed Card from const arrow function to a function declaration to potentially resolve TS inference issues.
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
+// FIX: Converted to const arrow function with explicit props type to fix TS inference issues.
+type CardProps = {
+    children: React.ReactNode;
+    className?: string;
+};
+const Card = ({ children, className }: CardProps) => {
     return <div className={`bg-white rounded-xl shadow-md p-6 ${className}`}>{children}</div>;
-}
-// FIX: Changed Button from const arrow function to a function declaration to potentially resolve TS inference issues.
-function Button({ children, onClick, className, type = "button", disabled }: { children: React.ReactNode; onClick?: () => void; className?: string; type?: "button" | "submit" | "reset"; disabled?: boolean; }) {
+};
+
+// FIX: Converted to const arrow function with explicit props type to fix TS inference issues.
+type ButtonProps = {
+    children: React.ReactNode;
+    onClick?: () => void;
+    className?: string;
+    type?: "button" | "submit" | "reset";
+    disabled?: boolean;
+};
+const Button = ({ children, onClick, className, type = "button", disabled }: ButtonProps) => {
     return <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>{children}</button>;
-}
-const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<input id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<textarea id={name} name={name} ref={ref} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props} />{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-const Select = ({ label, name, error, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string, error?: string, children: React.ReactNode }) => <div className="w-full">{label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}<select id={name} name={name} className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`} {...props}>{children}</select>{error && <p className="mt-1 text-xs text-red-600">{error}</p>}</div>);
-// FIX: Changed Modal from const arrow function to a function declaration to potentially resolve TS inference issues.
-function Modal({ isOpen, onClose, title, children }: { children: React.ReactNode; isOpen: boolean; onClose: () => void; title: string; }) {
+};
+
+const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => {
+    return (
+        <div className="w-full">
+            {label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+            <input
+                id={name}
+                name={name}
+                ref={ref}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`}
+                {...props}
+            />
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </div>
+    );
+});
+
+const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string, error?: string }>(({ label, name, error, ...props }, ref) => {
+    return (
+        <div className="w-full">
+            {label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+            <textarea
+                id={name}
+                name={name}
+                ref={ref}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`}
+                {...props}
+            />
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </div>
+    );
+});
+
+// FIX: Extracted props to a type alias to fix TS inference issues.
+type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
+    label?: string,
+    error?: string,
+    children: React.ReactNode
+};
+const Select = ({ label, name, error, children, ...props }: SelectProps) => {
+    return (
+        <div className="w-full">
+            {label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+            <select
+                id={name}
+                name={name}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-brand-yellow focus:border-brand-yellow sm:text-sm ${error ? 'border-red-500' : 'border-gray-300'}`}
+                {...props}
+            >
+                {children}
+            </select>
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </div>
+    );
+};
+
+// FIX: Converted to const arrow function with explicit props type to fix TS inference issues.
+type ModalProps = {
+    children: React.ReactNode;
+    isOpen: boolean;
+    onClose: () => void;
+    title: string;
+};
+const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
@@ -212,7 +283,8 @@ function Modal({ isOpen, onClose, title, children }: { children: React.ReactNode
             </div>
         </div>
     );
-}
+};
+
 const Toast = ({ message, show, type = 'success' }: { message: string; show: boolean; type?: 'success' | 'error' }) => <div className={`fixed bottom-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${show ? 'translate-x-0' : 'translate-x-full'} ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{message}</div>;
 const EmptyState = ({ title, message, action }: { title: string; message: string; action?: React.ReactNode }) => <div className="text-center py-12 px-6 bg-gray-50 rounded-lg"><h3 className="text-lg font-medium text-gray-900">{title}</h3><p className="mt-1 text-sm text-gray-500">{message}</p>{action && <div className="mt-6">{action}</div>}</div>;
 
