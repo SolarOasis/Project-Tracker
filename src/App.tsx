@@ -126,6 +126,30 @@ const useAppContext = () => {
 // ===================================================================================
 // HELPERS
 // ===================================================================================
+const useDebouncedCallback = (callback: (...args: any[]) => void, delay: number) => {
+    const timeoutRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        // Cleanup the timeout on component unmount
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
+    const debouncedCallback = (...args: any[]) => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = window.setTimeout(() => {
+            callback(...args);
+        }, delay);
+    };
+
+    return debouncedCallback;
+};
+
 const getOrCreateUserId = (): string => {
     const existingUserId = localStorage.getItem('solar_oasis_userId');
     if (existingUserId) {
@@ -371,7 +395,8 @@ const AppProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             } catch (error) {
                 console.error(error);
-                showToast("Failed to load data from the server.", "error");
+                const errorMessage = error instanceof Error ? error.message : "Failed to load data from the server.";
+                showToast(errorMessage, "error");
             } finally {
                 setIsLoading(false);
             }
@@ -699,7 +724,6 @@ const ProjectSidebar = ({onNewProject}: {onNewProject: () => void}) => {
     const { projects, selectedProjectId, setSelectedProjectId } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState<{ status: string; authority: string }>({ status: 'all', authority: 'all' });
-    // FIX: Corrected a syntax error with an extra equals sign.
     const [sort, setSort] = useState('updated_at_desc');
     const authorities = useMemo(() => Array.from(new Set(projects.map(p => p.authority).filter(Boolean))), [projects]);
 
@@ -845,7 +869,7 @@ const ProjectDetail = ({ project, onEdit, onDelete, openModal }: { project: Proj
                     {activeTab === 'reports' && <ReportsTab project={project} transactions={projectTransactions} followUps={projectFollowUps} todos={projectTodos} handlePrint={handlePrint} />}
                 </div>
             </div>
-            <div className="absolute -left-[9999px]" ref={printRef}><PrintableView project={project} transactions={projectTransactions} calcs={calculations} /></div>
+            <div className="fixed top-0 -left-[9999px] opacity-0" ref={printRef}><PrintableView project={project} transactions={projectTransactions} calcs={calculations} /></div>
             <Modals activeModal={activeModal} editingItem={null} itemToDelete={itemToDelete} handleCloseModal={() => { setActiveModal(null); setItemToDelete(null); }}/>
         </div>
     );
@@ -873,31 +897,62 @@ const FinancialsCard = ({ calcs }: { calcs: any }) => (
 
 const ProjectMilestonesTracker = ({ project }: { project: Project }) => {
     const { updateProjectMilestones } = useAppContext();
+    const [localMilestones, setLocalMilestones] = useState(project.milestones);
+
+    const debouncedUpdate = useDebouncedCallback((projectId: string, milestones: Milestone[]) => {
+        updateProjectMilestones(projectId, milestones);
+    }, 300);
+
+    useEffect(() => {
+        setLocalMilestones(project.milestones);
+    }, [project.milestones]);
+
     const handleToggle = (index: number) => {
-        const newMilestones = project.milestones.map((m, i) => i === index ? { ...m, completed: !m.completed, completedDate: !m.completed ? new Date().toISOString() : undefined } : m);
-        updateProjectMilestones(project.id, newMilestones);
+        const newMilestones = localMilestones.map((m, i) =>
+            i === index
+                ? { ...m, completed: !m.completed, completedDate: !m.completed ? new Date().toISOString() : undefined }
+                : m
+        );
+        setLocalMilestones(newMilestones);
+        debouncedUpdate(project.id, newMilestones);
     };
-    return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Project Milestones</h4><div className="space-y-3">{project.milestones.map((milestone, index) => (<div key={index} className="flex items-center justify-between"><div className="flex items-center"><input type="checkbox" checked={milestone.completed} onChange={() => handleToggle(index)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><label className={`ml-3 text-sm ${milestone.completed ? 'text-gray-500 line-through' : 'text-gray-700'}`}>{milestone.name}</label></div>{milestone.completed && milestone.completedDate && <span className="text-xs text-gray-400">{formatDate(milestone.completedDate)}</span>}</div>))}</div></Card>);
+
+    return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Project Milestones</h4><div className="space-y-3">{localMilestones.map((milestone, index) => (<div key={index} className="flex items-center justify-between"><div className="flex items-center"><input type="checkbox" checked={milestone.completed} onChange={() => handleToggle(index)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><label className={`ml-3 text-sm ${milestone.completed ? 'text-gray-500 line-through' : 'text-gray-700'}`}>{milestone.name}</label></div>{milestone.completed && milestone.completedDate && <span className="text-xs text-gray-400">{formatDate(milestone.completedDate)}</span>}</div>))}</div></Card>);
 };
 
 const PaymentMilestonesTracker = ({ project }: { project: Project }) => {
     const { updatePaymentMilestones } = useAppContext();
+    const [localMilestones, setLocalMilestones] = useState(project.paymentMilestones);
+
+    const debouncedUpdate = useDebouncedCallback((projectId: string, milestones: PaymentMilestone[]) => {
+        updatePaymentMilestones(projectId, milestones);
+    }, 500);
+
+    useEffect(() => {
+        setLocalMilestones(project.paymentMilestones);
+    }, [project.paymentMilestones]);
+
     const handleUpdate = (index: number, field: keyof PaymentMilestone, value: any) => {
-        const newMilestones = project.paymentMilestones.map((m, i) => {
+        const newMilestones = localMilestones.map((m, i) => {
             if (i === index) {
                 const updated = { ...m, [field]: value };
-                if (field === 'status' && value === 'Received') {
+                if (field === 'status' && value === 'Received' && m.status !== 'Received') {
                     updated.receivedDate = new Date().toISOString();
+                } else if (field === 'status' && value === 'Pending') {
+                    updated.receivedDate = undefined;
                 }
                 return updated;
             }
             return m;
         });
-        updatePaymentMilestones(project.id, newMilestones);
+        setLocalMilestones(newMilestones);
+        debouncedUpdate(project.id, newMilestones);
     };
-    const totalAmount = project.paymentMilestones.reduce((sum, m) => sum + safeNumber(m.amount), 0);
-    const totalReceived = project.paymentMilestones.filter(m => m.status === 'Received').reduce((sum, m) => sum + safeNumber(m.amount), 0);
-    return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Payment Milestones</h4><div className="space-y-3">{project.paymentMilestones.map((m, i) => (<div key={i} className="grid grid-cols-3 gap-2 items-center text-sm"><span className="font-medium text-gray-700">{m.label}</span><Input type="number" value={m.amount} onChange={(e) => handleUpdate(i, 'amount', parseFloat(e.target.value) || 0)} className="text-right" /><Select value={m.status} onChange={(e) => handleUpdate(i, 'status', e.target.value)}><option>Pending</option><option>Received</option></Select></div>))}</div><div className="border-t mt-4 pt-3 text-sm"><div className="flex justify-between"><span>Total Amount:</span> <span className="font-semibold">{formatCurrency(totalAmount)}</span></div><div className="flex justify-between"><span>Total Received:</span> <span className="font-semibold text-green-600">{formatCurrency(totalReceived)}</span></div></div></Card>);
+
+    const totalAmount = localMilestones.reduce((sum, m) => sum + safeNumber(m.amount), 0);
+    const totalReceived = localMilestones.filter(m => m.status === 'Received').reduce((sum, m) => sum + safeNumber(m.amount), 0);
+    
+    return (<Card><h4 className="font-bold text-lg text-brand-indigo mb-4">Payment Milestones</h4><div className="space-y-3">{localMilestones.map((m, i) => (<div key={i} className="grid grid-cols-3 gap-2 items-center text-sm"><span className="font-medium text-gray-700">{m.label}</span><Input type="number" value={m.amount} onChange={(e) => handleUpdate(i, 'amount', parseFloat(e.target.value) || 0)} className="text-right" /><Select value={m.status} onChange={(e) => handleUpdate(i, 'status', e.target.value)}><option>Pending</option><option>Received</option></Select></div>))}</div><div className="border-t mt-4 pt-3 text-sm"><div className="flex justify-between"><span>Total Amount:</span> <span className="font-semibold">{formatCurrency(totalAmount)}</span></div><div className="flex justify-between"><span>Total Received:</span> <span className="font-semibold text-green-600">{formatCurrency(totalReceived)}</span></div></div></Card>);
 };
 
 const TransactionsTab = ({ transactions, openModal, onDelete }: { transactions: Transaction[]; openModal: (type: ModalType, item?: any) => void; onDelete: (id: string) => void; }) => {
@@ -951,10 +1006,15 @@ const BreakdownsTab = ({ transactions }: { transactions: Transaction[] }) => {
             totalExpenses
         };
     }, [transactions]);
+// FIX: Extracted props to a type alias to fix TS inference issues.
+type BreakdownTableProps = {
+    title: string;
+    data: { key: string; value: number; percentage: number }[];
+};
 
-    const BreakdownTable = ({ title, data }: { title: string, data: { key: string, value: number, percentage: number }[] }) => (
-        <Card><h4 className="font-bold text-lg text-brand-indigo mb-4">{title}</h4>{data.length > 0 ? <div className="space-y-2">{data.map(item => (<div key={item.key} className="flex justify-between items-center text-sm"><div className="flex items-center w-full"><span className="w-1/3 truncate">{item.key}</span><div className="w-2/3 bg-gray-200 rounded-full h-2.5"><div className="bg-brand-indigo h-2.5 rounded-full" style={{ width: `${item.percentage}%` }} /></div></div><span className="ml-4 font-semibold w-28 text-right">{formatCurrency(item.value)}</span></div>))}</div> : <p className="text-sm text-gray-500">No expense data available.</p>}</Card>
-    );
+const BreakdownTable = ({ title, data }: BreakdownTableProps) => (
+    <Card><h4 className="font-bold text-lg text-brand-indigo mb-4">{title}</h4>{data.length > 0 ? <div className="space-y-2">{data.map(item => (<div key={item.key} className="flex justify-between items-center text-sm"><div className="flex items-center w-full"><span className="w-1/3 truncate">{item.key}</span><div className="w-2/3 bg-gray-200 rounded-full h-2.5"><div className="bg-brand-indigo h-2.5 rounded-full" style={{ width: `${item.percentage}%` }} /></div></div><span className="ml-4 font-semibold w-28 text-right">{formatCurrency(item.value)}</span></div>))}</div> : <p className="text-sm text-gray-500">No expense data available.</p>}</Card>
+);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -971,10 +1031,16 @@ const FollowUpsTab = ({ followUps, openModal, onDelete }: { followUps: FollowUp[
     const overdue = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) > 0);
     const upcoming = sortedFollowUps.filter(f => f.status === 'Pending' && differenceInDays(new Date(), parseISO(f.date)) <= 0);
     const completed = sortedFollowUps.filter(f => f.status === 'Completed');
+// FIX: Extracted props to a type alias to fix TS inference issues.
+type FollowUpListProps = {
+    title: string;
+    items: FollowUp[];
+    color: string;
+};
 
-    const FollowUpList = ({ title, items, color }: { title: string, items: FollowUp[], color: string }) => (
-        <div><h4 className={`font-bold text-lg mb-4 text-${color}-600`}>{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-3">{items.map(f => (<div key={f.id} className="p-4 rounded-lg bg-white shadow-sm border-l-4" style={{borderColor: color}}><div className="flex justify-between items-start"><div><p className="font-semibold">{f.title}</p><p className="text-sm text-gray-600">{f.details}</p><p className="text-xs text-gray-400 mt-2">Logged on {formatDate(f.date)} by {f.owner}</p>{f.nextFollowUpDate && <p className="text-xs text-gray-500 font-medium">Next follow-up: {formatDate(f.nextFollowUpDate)}</p>}</div><div className="flex gap-2"><button onClick={() => openModal('followup', f)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(f.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div></div>))}</div> : <p className="text-sm text-gray-500">None.</p>}</div>
-    );
+const FollowUpList = ({ title, items, color }: FollowUpListProps) => (
+    <div><h4 className={`font-bold text-lg mb-4 text-${color}-600`}>{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-3">{items.map(f => (<div key={f.id} className="p-4 rounded-lg bg-white shadow-sm border-l-4" style={{borderColor: color}}><div className="flex justify-between items-start"><div><p className="font-semibold">{f.title}</p><p className="text-sm text-gray-600">{f.details}</p><p className="text-xs text-gray-400 mt-2">Logged on {formatDate(f.date)} by {f.owner}</p>{f.nextFollowUpDate && <p className="text-xs text-gray-500 font-medium">Next follow-up: {formatDate(f.nextFollowUpDate)}</p>}</div><div className="flex gap-2"><button onClick={() => openModal('followup', f)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(f.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div></div>))}</div> : <p className="text-sm text-gray-500">None.</p>}</div>
+);
 
     return <Card><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-brand-indigo">Client Follow-Ups</h3><Button onClick={() => openModal('followup')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add Follow-Up</Button></div><div className="space-y-8"><FollowUpList title="Overdue" items={overdue} color="red" /><FollowUpList title="Upcoming" items={upcoming} color="blue" /><FollowUpList title="Completed" items={completed} color="gray" /></div></Card>;
 };
@@ -984,10 +1050,15 @@ const TodosTab = ({ todos, openModal, onToggle, onDelete }: { todos: Todo[], ope
     const doneTodos = useMemo(() => todos.filter(t => t.status === 'Done'), [todos]);
     
     const priorityColor = (priority: 'Low' | 'Medium' | 'High') => ({ Low: 'bg-green-100 text-green-800', Medium: 'bg-yellow-100 text-yellow-800', High: 'bg-red-100 text-red-800' }[priority]);
+// FIX: Extracted props to a type alias to fix TS inference issues.
+type TodoListProps = {
+    title: string;
+    items: Todo[];
+};
 
-    const TodoList = ({ title, items }: { title: string, items: Todo[] }) => (
-        <div><h4 className="font-bold text-lg mb-4">{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-2">{items.map(t => (<div key={t.id} className={`flex items-center p-3 rounded-lg ${t.status === 'Done' ? 'bg-gray-100' : 'bg-white shadow-sm'}`}><input type="checkbox" checked={t.status === 'Done'} onChange={() => onToggle(t)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><div className="ml-4 flex-1"><p className={`${t.status === 'Done' ? 'line-through text-gray-500' : ''}`}>{t.task}</p><div className="text-xs text-gray-500 flex items-center gap-4 mt-1"><span>Due: {formatDate(t.dueDate)}</span>{t.assignee && <span>To: {t.assignee}</span>}<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(t.priority)}`}>{t.priority}</span></div></div><div className="flex gap-2"><button onClick={() => openModal('todo', t)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(t.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div>))}</div> : <p className="text-sm text-gray-500">All caught up!</p>}</div>
-    );
+const TodoList = ({ title, items }: TodoListProps) => (
+    <div><h4 className="font-bold text-lg mb-4">{title} ({items.length})</h4>{items.length > 0 ? <div className="space-y-2">{items.map(t => (<div key={t.id} className={`flex items-center p-3 rounded-lg ${t.status === 'Done' ? 'bg-gray-100' : 'bg-white shadow-sm'}`}><input type="checkbox" checked={t.status === 'Done'} onChange={() => onToggle(t)} className="h-5 w-5 rounded border-gray-300 text-brand-indigo focus:ring-brand-yellow" /><div className="ml-4 flex-1"><p className={`${t.status === 'Done' ? 'line-through text-gray-500' : ''}`}>{t.task}</p><div className="text-xs text-gray-500 flex items-center gap-4 mt-1"><span>Due: {formatDate(t.dueDate)}</span>{t.assignee && <span>To: {t.assignee}</span>}<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(t.priority)}`}>{t.priority}</span></div></div><div className="flex gap-2"><button onClick={() => openModal('todo', t)} className="text-gray-400 hover:text-brand-indigo"><PencilIcon/></button><button onClick={() => onDelete(t.id)} className="text-gray-400 hover:text-red-600"><TrashIcon/></button></div></div>))}</div> : <p className="text-sm text-gray-500">All caught up!</p>}</div>
+);
     
     return <Card><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-brand-indigo">To-Do List</h3><Button onClick={() => openModal('todo')} className="bg-brand-yellow text-brand-indigo hover:bg-yellow-300"><PlusIcon /> Add To-Do</Button></div><div className="space-y-8"><TodoList title="Open" items={openTodos} /><TodoList title="Done" items={doneTodos} /></div></Card>;
 };

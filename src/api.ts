@@ -43,7 +43,8 @@ const postRequest = async (body: object) => {
 export const fetchAllData = async (uid: string): Promise<ApiResponse> => {
     const response = await fetch(`${API_URL}?action=getAllData&uid=${uid}&apiKey=${API_KEY}`);
     if (!response.ok) {
-        throw new Error("Failed to fetch data from the server.");
+        const error = await response.json().catch(() => ({ error: "Network error or invalid JSON response", details: response.statusText }));
+        throw new Error(`Failed to fetch data. Server says: ${error.details || error.error}`);
     }
     return response.json();
 };
